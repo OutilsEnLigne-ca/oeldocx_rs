@@ -1,0 +1,106 @@
+use crate::model::{Alignment, ListType};
+use serde::{Deserialize, Serialize};
+
+/// Twips-to-points factor (1 pt = 20 twips).
+pub const TWIPS_TO_PT: f32 = 0.05;
+/// Half-points-to-points factor.
+pub const HALFPT_TO_PT: f32 = 0.5;
+/// Default resolved font size in points.
+pub const DEFAULT_FONT_SIZE_PT: f32 = 12.0;
+pub const DEFAULT_FONT_FAMILY: &str = "Times New Roman";
+pub const DEFAULT_COLOR: &str = "000000";
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RenderSectionProps {
+    pub page_width_pt: f32,
+    pub page_height_pt: f32,
+    pub margin_top_pt: f32,
+    pub margin_right_pt: f32,
+    pub margin_bottom_pt: f32,
+    pub margin_left_pt: f32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RenderFormat {
+    pub bold: bool,
+    pub italic: bool,
+    pub underline: bool,
+    pub strikethrough: bool,
+    pub font_size_pt: f32,
+    pub font_family: String,
+    /// Hex RGB without '#'.
+    pub color: String,
+    pub highlight: Option<String>,
+}
+
+impl Default for RenderFormat {
+    fn default() -> Self {
+        Self {
+            bold: false,
+            italic: false,
+            underline: false,
+            strikethrough: false,
+            font_size_pt: DEFAULT_FONT_SIZE_PT,
+            font_family: DEFAULT_FONT_FAMILY.to_string(),
+            color: DEFAULT_COLOR.to_string(),
+            highlight: None,
+        }
+    }
+}
+
+/// A contiguous span of text with uniform formatting.
+/// `char_start` and `char_end` are relative to the start of the parent paragraph
+/// and are used by the React renderer to position the cursor overlay.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RenderSpan {
+    pub text: String,
+    pub format: RenderFormat,
+    pub char_start: usize,
+    pub char_end: usize,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RenderParagraph {
+    pub id: String,
+    pub style_id: Option<String>,
+    pub alignment: Alignment,
+    pub indent_level: u32,
+    pub list_type: Option<ListType>,
+    /// Resolved counter for numbered lists (1-based). None for bullets or non-list.
+    pub list_index: Option<u32>,
+    pub spacing_before_pt: f32,
+    pub spacing_after_pt: f32,
+    pub spans: Vec<RenderSpan>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RenderTableCell {
+    pub blocks: Vec<RenderBlock>,
+    pub col_span: u32,
+    pub row_span: u32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RenderTableRow {
+    pub cells: Vec<RenderTableCell>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RenderTable {
+    pub id: String,
+    pub rows: Vec<RenderTableRow>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "type", content = "data")]
+pub enum RenderBlock {
+    Paragraph(RenderParagraph),
+    Table(RenderTable),
+    PageBreak,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RenderDocument {
+    pub blocks: Vec<RenderBlock>,
+    pub section: RenderSectionProps,
+}
