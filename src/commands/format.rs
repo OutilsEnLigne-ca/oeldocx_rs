@@ -1,5 +1,5 @@
-use crate::model::{OelDocument, OelBlock, OelParagraph, OelRun, OelRunProps};
 use crate::cursor::DocSelection;
+use crate::model::{OelBlock, OelDocument, OelParagraph, OelRun, OelRunProps};
 
 /// Apply a run-property mutation to all runs within the selection.
 /// For a collapsed selection (no range), toggles the property on the formatting
@@ -23,13 +23,25 @@ pub fn apply_run_format(
         && start.inner_block_idx == end.inner_block_idx
     {
         // Single paragraph selection
-        if let Some(para) = get_para_mut_raw(doc, start.block_idx, start.table_row, start.table_col, start.inner_block_idx) {
+        if let Some(para) = get_para_mut_raw(
+            doc,
+            start.block_idx,
+            start.table_row,
+            start.table_col,
+            start.inner_block_idx,
+        ) {
             apply_format_to_para(para, start.char_offset, end.char_offset, apply);
         }
     } else {
         // Multi-paragraph selection
         // First paragraph: from start.char_offset to end of paragraph
-        if let Some(para) = get_para_mut_raw(doc, start.block_idx, start.table_row, start.table_col, start.inner_block_idx) {
+        if let Some(para) = get_para_mut_raw(
+            doc,
+            start.block_idx,
+            start.table_row,
+            start.table_col,
+            start.inner_block_idx,
+        ) {
             let len = para.char_len();
             apply_format_to_para(para, start.char_offset, len, apply);
         }
@@ -45,7 +57,13 @@ pub fn apply_run_format(
         }
 
         // Last paragraph: from start to end.char_offset
-        if let Some(para) = get_para_mut_raw(doc, end.block_idx, end.table_row, end.table_col, end.inner_block_idx) {
+        if let Some(para) = get_para_mut_raw(
+            doc,
+            end.block_idx,
+            end.table_row,
+            end.table_col,
+            end.inner_block_idx,
+        ) {
             apply_format_to_para(para, 0, end.char_offset, apply);
         }
     }
@@ -82,7 +100,9 @@ fn apply_format_to_para(
             }
 
             // Selected part
-            let text: String = run.text.chars()
+            let text: String = run
+                .text
+                .chars()
                 .skip(sel_start_in_run)
                 .take(sel_end_in_run - sel_start_in_run)
                 .collect();
@@ -175,4 +195,91 @@ pub fn set_text_color(doc: &mut OelDocument, sel: &DocSelection, hex: &str) {
 pub fn set_highlight(doc: &mut OelDocument, sel: &DocSelection, hex: Option<&str>) {
     let owned = hex.map(|s| s.to_string());
     apply_run_format(doc, sel, &move |p| p.highlight = owned.clone());
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::cursor::DocPosition;
+    use crate::model::{OelBlock, OelRun};
+
+    #[test]
+    fn test_set_bold() {
+        let mut doc = OelDocument::empty();
+        if let Some(OelBlock::Paragraph(p)) = doc.blocks.get_mut(0) {
+            p.runs.push(OelRun::with_props(
+                "Hello world".to_string(),
+                Default::default(),
+            ));
+        }
+
+        let sel = DocSelection::new(
+            DocPosition {
+                block_idx: 0,
+                table_row: None,
+                table_col: None,
+                inner_block_idx: 0,
+                char_offset: 0,
+            },
+            DocPosition {
+                block_idx: 0,
+                table_row: None,
+                table_col: None,
+                inner_block_idx: 0,
+                char_offset: 5,
+            },
+        );
+
+        set_bold(&mut doc, &sel, true);
+
+        if let Some(OelBlock::Paragraph(p)) = doc.blocks.get(0) {
+            assert_eq!(p.runs.len(), 2);
+            assert_eq!(p.runs[0].text, "Hello");
+            assert!(p.runs[0].props.bold);
+            assert_eq!(p.runs[1].text, " world");
+            assert!(!p.runs[1].props.bold);
+        } else {
+            panic!("Expected paragraph");
+        }
+    }
+
+    #[test]
+    fn test_set_font_family() {
+        let mut doc = OelDocument::empty();
+        if let Some(OelBlock::Paragraph(p)) = doc.blocks.get_mut(0) {
+            p.runs.push(OelRun::with_props(
+                "Change my font".to_string(),
+                Default::default(),
+            ));
+        }
+
+        let sel = DocSelection::new(
+            DocPosition {
+                block_idx: 0,
+                table_row: None,
+                table_col: None,
+                inner_block_idx: 0,
+                char_offset: 0,
+            },
+            DocPosition {
+                block_idx: 0,
+                table_row: None,
+                table_col: None,
+                inner_block_idx: 0,
+                char_offset: 6,
+            },
+        );
+
+        set_font_family(&mut doc, &sel, "Roboto");
+
+        if let Some(OelBlock::Paragraph(p)) = doc.blocks.get(0) {
+            assert_eq!(p.runs.len(), 2);
+            assert_eq!(p.runs[0].text, "Change");
+            assert_eq!(p.runs[0].props.font_family.as_deref(), Some("Roboto"));
+            assert_eq!(p.runs[1].text, " my font");
+            assert_eq!(p.runs[1].props.font_family, None);
+        } else {
+            panic!("Expected paragraph");
+        }
+    }
 }

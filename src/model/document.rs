@@ -141,3 +141,66 @@ fn default_styles() -> HashMap<String, OelStyle> {
 
     styles
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::model::{OelBlock, OelRun, OelTable, OelTableCell, OelTableRow};
+
+    #[test]
+    fn test_empty_document() {
+        let doc = OelDocument::empty();
+        assert_eq!(doc.blocks.len(), 1);
+        assert!(matches!(doc.blocks[0], OelBlock::Paragraph(_)));
+        assert!(doc.styles.contains_key("Normal"));
+        assert_eq!(doc.word_count(), 0);
+        assert_eq!(doc.char_count(), 0);
+    }
+
+    #[test]
+    fn test_word_and_char_count() {
+        let mut doc = OelDocument::empty();
+        if let Some(OelBlock::Paragraph(p)) = doc.blocks.get_mut(0) {
+            p.runs.push(OelRun::with_props(
+                "Hello world ".to_string(),
+                Default::default(),
+            ));
+        }
+
+        assert_eq!(doc.word_count(), 2);
+        assert_eq!(doc.char_count(), 12);
+    }
+
+    #[test]
+    fn test_iter_paragraphs_with_table() {
+        let mut doc = OelDocument::empty();
+
+        let mut cell = OelTableCell {
+            blocks: vec![],
+            props: Default::default(),
+        };
+        let mut cell_para = OelParagraph::new("cell-p1".to_string());
+        cell_para.runs.push(OelRun::with_props(
+            "Table text".to_string(),
+            Default::default(),
+        ));
+        cell.blocks.push(OelBlock::Paragraph(cell_para));
+
+        let row = OelTableRow { cells: vec![cell] };
+        let table = OelTable {
+            id: "t1".to_string(),
+            rows: vec![row],
+            props: Default::default(),
+        };
+
+        doc.blocks.push(OelBlock::Table(table));
+
+        let paras: Vec<&OelParagraph> = doc.iter_paragraphs().collect();
+        assert_eq!(paras.len(), 2);
+        assert_eq!(paras[0].plain_text(), "");
+        assert_eq!(paras[1].plain_text(), "Table text");
+
+        assert_eq!(doc.word_count(), 2);
+        assert_eq!(doc.char_count(), 10);
+    }
+}

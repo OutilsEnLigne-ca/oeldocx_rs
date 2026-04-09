@@ -654,3 +654,20 @@ impl Default for DocxController {
         Self::new()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_format_at_cursor_with_style() {
+        let mut controller = DocxController::new();
+
+        controller.apply_style("Heading1");
+
+        let state = controller.get_state();
+        assert_eq!(state.format.current_style_id.as_deref(), Some("Heading1"));
+        assert_eq!(state.format.bold, true);
+        assert_eq!(state.format.font_size, 24);
+    }
+}
