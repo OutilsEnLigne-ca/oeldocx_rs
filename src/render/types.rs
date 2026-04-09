@@ -6,8 +6,8 @@ pub const TWIPS_TO_PT: f32 = 0.05;
 /// Half-points-to-points factor.
 pub const HALFPT_TO_PT: f32 = 0.5;
 /// Default resolved font size in points.
-pub const DEFAULT_FONT_SIZE_PT: f32 = 12.0;
-pub const DEFAULT_FONT_FAMILY: &str = "Times New Roman";
+pub const DEFAULT_FONT_SIZE_PT: f32 = 11.0;
+pub const DEFAULT_FONT_FAMILY: &str = "Roboto";
 pub const DEFAULT_COLOR: &str = "000000";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -112,3 +112,11 @@ impl Default for OelTableCellProps {
         }
     }
 }
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct OelStyle {
+    pub id: String,
+    pub name: String,
+    pub run_props: OelRunProps,
+    pub para_props: OelParaProps,
+}

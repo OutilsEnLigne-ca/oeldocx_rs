@@ -547,28 +547,49 @@ impl DocxController {
 
         let para_props = self.para_props_at(pos);
 
+        let style_run_props = para_props
+            .and_then(|pp| pp.style_id.as_ref())
+            .and_then(|id| self.document.styles.get(id))
+            .map(|s| &s.run_props);
+
         let (alignment, list_type) = match para_props {
             Some(pp) => (pp.alignment.clone(), pp.list_type.clone()),
             None => (crate::model::Alignment::Left, None),
         };
 
+        let bold = run_props.bold || style_run_props.map_or(false, |sp| sp.bold);
+        let italic = run_props.italic || style_run_props.map_or(false, |sp| sp.italic);
+        let underline = run_props.underline || style_run_props.map_or(false, |sp| sp.underline);
+        let strikethrough =
+            run_props.strikethrough || style_run_props.map_or(false, |sp| sp.strikethrough);
+
+        let font_size = run_props
+            .font_size
+            .or_else(|| style_run_props.and_then(|sp| sp.font_size));
+        let font_family = run_props
+            .font_family
+            .clone()
+            .or_else(|| style_run_props.and_then(|sp| sp.font_family.clone()));
+        let color = run_props
+            .color
+            .clone()
+            .or_else(|| style_run_props.and_then(|sp| sp.color.clone()));
+
         FormatState {
-            bold: run_props.bold,
-            italic: run_props.italic,
-            underline: run_props.underline,
-            strikethrough: run_props.strikethrough,
-            font_size: run_props
-                .font_size
+            bold,
+            italic,
+            underline,
+            strikethrough,
+            font_size: font_size
                 .map(|s| s / 2) // half-points → points for state
-                .unwrap_or(12),
-            font_family: run_props
-                .font_family
-                .unwrap_or_else(|| DEFAULT_FONT_FAMILY.to_string()),
-            color: run_props.color.unwrap_or_else(|| DEFAULT_COLOR.to_string()),
+                .unwrap_or(11),
+            font_family: font_family.unwrap_or_else(|| DEFAULT_FONT_FAMILY.to_string()),
+            color: color.unwrap_or_else(|| DEFAULT_COLOR.to_string()),
             highlight: run_props.highlight,
             alignment,
             list_type,
             is_in_table,
+            current_style_id: para_props.and_then(|pp| pp.style_id.clone()),
         }
     }
 

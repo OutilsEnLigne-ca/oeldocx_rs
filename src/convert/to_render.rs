@@ -20,21 +20,27 @@ pub fn oel_to_render(doc: &OelDocument) -> RenderDocument {
     let blocks = doc
         .blocks
         .iter()
-        .map(|block| convert_block(block, &mut numbered_counter))
+        .map(|block| convert_block(block, doc, &mut numbered_counter))
         .collect();
 
     RenderDocument { blocks, section }
 }
 
-fn convert_block(block: &OelBlock, numbered_counter: &mut u32) -> RenderBlock {
+fn convert_block(block: &OelBlock, doc: &OelDocument, numbered_counter: &mut u32) -> RenderBlock {
     match block {
-        OelBlock::Paragraph(p) => RenderBlock::Paragraph(convert_paragraph(p, numbered_counter)),
-        OelBlock::Table(t) => RenderBlock::Table(convert_table(t, numbered_counter)),
+        OelBlock::Paragraph(p) => {
+            RenderBlock::Paragraph(convert_paragraph(p, doc, numbered_counter))
+        }
+        OelBlock::Table(t) => RenderBlock::Table(convert_table(t, doc, numbered_counter)),
         OelBlock::PageBreak => RenderBlock::PageBreak,
     }
 }
 
-fn convert_paragraph(para: &OelParagraph, numbered_counter: &mut u32) -> RenderParagraph {
+fn convert_paragraph(
+    para: &OelParagraph,
+    doc: &OelDocument,
+    numbered_counter: &mut u32,
+) -> RenderParagraph {
     let list_index = match &para.props.list_type {
         Some(ListType::Numbered) => {
             *numbered_counter += 1;
@@ -73,7 +79,7 @@ fn convert_paragraph(para: &OelParagraph, numbered_counter: &mut u32) -> RenderP
 
             RenderSpan {
                 text: run.text.clone(),
-                format: resolve_format(&run.props),
+                format: resolve_format(&run.props, para.props.style_id.as_deref(), doc),
                 char_start,
                 char_end,
             }
@@ -93,7 +99,7 @@ fn convert_paragraph(para: &OelParagraph, numbered_counter: &mut u32) -> RenderP
     }
 }
 
-fn convert_table(table: &OelTable, numbered_counter: &mut u32) -> RenderTable {
+fn convert_table(table: &OelTable, doc: &OelDocument, numbered_counter: &mut u32) -> RenderTable {
     let rows = table
         .rows
         .iter()
@@ -105,7 +111,7 @@ fn convert_table(table: &OelTable, numbered_counter: &mut u32) -> RenderTable {
                     let blocks = cell
                         .blocks
                         .iter()
-                        .map(|b| convert_block(b, numbered_counter))
+                        .map(|b| convert_block(b, doc, numbered_counter))
                         .collect();
                     RenderTableCell {
                         blocks,
@@ -124,24 +130,40 @@ fn convert_table(table: &OelTable, numbered_counter: &mut u32) -> RenderTable {
     }
 }
 
-fn resolve_format(props: &OelRunProps) -> RenderFormat {
+fn resolve_format(props: &OelRunProps, style_id: Option<&str>, doc: &OelDocument) -> RenderFormat {
+    let style_run_props = style_id
+        .and_then(|id| doc.styles.get(id))
+        .map(|s| &s.run_props);
+
+    let bold = props.bold || style_run_props.map_or(false, |sp| sp.bold);
+    let italic = props.italic || style_run_props.map_or(false, |sp| sp.italic);
+    let underline = props.underline || style_run_props.map_or(false, |sp| sp.underline);
+    let strikethrough = props.strikethrough || style_run_props.map_or(false, |sp| sp.strikethrough);
+
+    let font_size = props
+        .font_size
+        .or_else(|| style_run_props.and_then(|sp| sp.font_size));
+    let font_family = props
+        .font_family
+        .as_ref()
+        .or_else(|| style_run_props.and_then(|sp| sp.font_family.as_ref()));
+    let color = props
+        .color
+        .as_ref()
+        .or_else(|| style_run_props.and_then(|sp| sp.color.as_ref()));
+
     RenderFormat {
-        bold: props.bold,
-        italic: props.italic,
-        underline: props.underline,
-        strikethrough: props.strikethrough,
-        font_size_pt: props
-            .font_size
+        bold,
+        italic,
+        underline,
+        strikethrough,
+        font_size_pt: font_size
             .map(|s| s as f32 * HALFPT_TO_PT)
             .unwrap_or(DEFAULT_FONT_SIZE_PT),
-        font_family: props
-            .font_family
-            .clone()
+        font_family: font_family
+            .cloned()
             .unwrap_or_else(|| DEFAULT_FONT_FAMILY.to_string()),
-        color: props
-            .color
-            .clone()
-            .unwrap_or_else(|| DEFAULT_COLOR.to_string()),
+        color: color.cloned().unwrap_or_else(|| DEFAULT_COLOR.to_string()),
         highlight: props.highlight.clone(),
     }
 }

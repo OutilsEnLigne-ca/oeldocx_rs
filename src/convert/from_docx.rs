@@ -1,9 +1,11 @@
-use docx_rs::{Docx, DocumentChild, ParagraphChild, RunChild, TableChild, TableRowChild, TableCellContent};
 use crate::model::{
-    OelDocument, OelBlock, OelParagraph, OelRun, OelTable, OelTableRow, OelTableCell,
-    OelRunProps, OelParaProps, OelTableCellProps, OelSectionProps,
-    Alignment, ListType, next_id,
+    Alignment, ListType, OelBlock, OelDocument, OelParaProps, OelParagraph, OelRun, OelRunProps,
+    OelSectionProps, OelStyle, OelTable, OelTableCell, OelTableCellProps, OelTableRow, next_id,
 };
+use docx_rs::{
+    DocumentChild, Docx, ParagraphChild, RunChild, TableCellContent, TableChild, TableRowChild,
+};
+use std::collections::HashMap;
 
 pub fn docx_to_oel(docx: &Docx) -> OelDocument {
     let blocks = docx
@@ -15,7 +17,29 @@ pub fn docx_to_oel(docx: &Docx) -> OelDocument {
 
     let section = convert_section(docx);
 
-    OelDocument { blocks, section }
+    let mut styles = OelDocument::empty().styles;
+    for style in &docx.styles.styles {
+        let run_props = convert_run_props(&style.run_property);
+        let para_props = convert_para_props(&style.paragraph_property);
+
+        let name = serde_str_field(&style.name, "val").unwrap_or_else(|| style.style_id.clone());
+
+        styles.insert(
+            style.style_id.clone(),
+            OelStyle {
+                id: style.style_id.clone(),
+                name,
+                run_props,
+                para_props,
+            },
+        );
+    }
+
+    OelDocument {
+        blocks,
+        section,
+        styles,
+    }
 }
 
 fn convert_document_child(child: &DocumentChild) -> Option<OelBlock> {
@@ -46,51 +70,68 @@ fn convert_document_child(child: &DocumentChild) -> Option<OelBlock> {
         }
         DocumentChild::Table(t) => {
             let id = next_id();
-            let rows = t.rows.iter().filter_map(|tc| {
-                let TableChild::TableRow(row) = tc;
-                let cells = row.cells.iter().filter_map(|rc| {
-                    let TableRowChild::TableCell(cell) = rc;
-                    let blocks = cell.children.iter().filter_map(|content| {
-                        match content {
-                            TableCellContent::Paragraph(p) => {
-                                let mut para = OelParagraph::new(next_id());
-                                para.props = convert_para_props(&p.property);
-                                for pc in &p.children {
-                                    if let ParagraphChild::Run(run) = pc {
-                                        let props = convert_run_props(&run.run_property);
-                                        let mut text = String::new();
-                                        for rc in &run.children {
-                                            match rc {
-                                                RunChild::Text(t) => text.push_str(&t.text),
-                                                RunChild::Tab(_) => text.push('\t'),
-                                                _ => {}
+            let rows = t
+                .rows
+                .iter()
+                .filter_map(|tc| {
+                    let TableChild::TableRow(row) = tc;
+                    let cells = row
+                        .cells
+                        .iter()
+                        .filter_map(|rc| {
+                            let TableRowChild::TableCell(cell) = rc;
+                            let blocks = cell
+                                .children
+                                .iter()
+                                .filter_map(|content| match content {
+                                    TableCellContent::Paragraph(p) => {
+                                        let mut para = OelParagraph::new(next_id());
+                                        para.props = convert_para_props(&p.property);
+                                        for pc in &p.children {
+                                            if let ParagraphChild::Run(run) = pc {
+                                                let props = convert_run_props(&run.run_property);
+                                                let mut text = String::new();
+                                                for rc in &run.children {
+                                                    match rc {
+                                                        RunChild::Text(t) => text.push_str(&t.text),
+                                                        RunChild::Tab(_) => text.push('\t'),
+                                                        _ => {}
+                                                    }
+                                                }
+                                                if !text.is_empty() {
+                                                    para.runs.push(OelRun::with_props(text, props));
+                                                }
                                             }
                                         }
-                                        if !text.is_empty() {
-                                            para.runs.push(OelRun::with_props(text, props));
-                                        }
+                                        para.normalize_runs();
+                                        Some(OelBlock::Paragraph(para))
                                     }
-                                }
-                                para.normalize_runs();
-                                Some(OelBlock::Paragraph(para))
-                            }
-                            _ => None,
-                        }
-                    }).collect::<Vec<_>>();
+                                    _ => None,
+                                })
+                                .collect::<Vec<_>>();
 
-                    let blocks = if blocks.is_empty() {
-                        vec![OelBlock::Paragraph(OelParagraph::new(next_id()))]
-                    } else {
-                        blocks
-                    };
+                            let blocks = if blocks.is_empty() {
+                                vec![OelBlock::Paragraph(OelParagraph::new(next_id()))]
+                            } else {
+                                blocks
+                            };
 
-                    Some(OelTableCell { blocks, props: OelTableCellProps::default() })
-                }).collect();
+                            Some(OelTableCell {
+                                blocks,
+                                props: OelTableCellProps::default(),
+                            })
+                        })
+                        .collect();
 
-                Some(OelTableRow { cells })
-            }).collect();
+                    Some(OelTableRow { cells })
+                })
+                .collect();
 
-            Some(OelBlock::Table(OelTable { id, rows, props: Default::default() }))
+            Some(OelBlock::Table(OelTable {
+                id,
+                rows,
+                props: Default::default(),
+            }))
         }
         _ => None,
     }
@@ -112,7 +153,10 @@ fn convert_document_child(child: &DocumentChild) -> Option<OelBlock> {
 // ---------------------------------------------------------------------------
 
 fn serde_bool<T: serde::Serialize>(v: &T) -> bool {
-    serde_json::to_value(v).ok().and_then(|j| j.as_bool()).unwrap_or(false)
+    serde_json::to_value(v)
+        .ok()
+        .and_then(|j| j.as_bool())
+        .unwrap_or(false)
 }
 
 fn serde_u64<T: serde::Serialize>(v: &T) -> Option<u64> {
@@ -120,16 +164,20 @@ fn serde_u64<T: serde::Serialize>(v: &T) -> Option<u64> {
 }
 
 fn serde_str<T: serde::Serialize>(v: &T) -> Option<String> {
-    serde_json::to_value(v).ok().and_then(|j| j.as_str().map(|s| s.to_string()))
+    serde_json::to_value(v)
+        .ok()
+        .and_then(|j| j.as_str().map(|s| s.to_string()))
 }
 
 fn serde_str_field<T: serde::Serialize>(v: &T, key: &str) -> Option<String> {
-    serde_json::to_value(v).ok()
+    serde_json::to_value(v)
+        .ok()
         .and_then(|j| j.get(key).and_then(|f| f.as_str()).map(|s| s.to_string()))
 }
 
 fn serde_u32_field<T: serde::Serialize>(v: &T, key: &str) -> Option<u32> {
-    serde_json::to_value(v).ok()
+    serde_json::to_value(v)
+        .ok()
         .and_then(|j| j.get(key).and_then(|f| f.as_u64()).map(|n| n as u32))
 }
 
@@ -141,19 +189,33 @@ fn convert_run_props(rp: &docx_rs::RunProperty) -> OelRunProps {
         strikethrough: rp.strike.as_ref().map(|s| s.val).unwrap_or(false),
         font_size: rp.sz.as_ref().and_then(|s| serde_u64(s)).map(|v| v as u32),
         font_family: rp.fonts.as_ref().and_then(|f| serde_str_field(f, "ascii")),
-        color: rp.color.as_ref().and_then(|c| serde_str(c)).filter(|s| s != "auto" && !s.is_empty()),
-        highlight: rp.highlight.as_ref().and_then(|h| serde_str(h)).filter(|s| s != "none"),
+        color: rp
+            .color
+            .as_ref()
+            .and_then(|c| serde_str(c))
+            .filter(|s| s != "auto" && !s.is_empty()),
+        highlight: rp
+            .highlight
+            .as_ref()
+            .and_then(|h| serde_str(h))
+            .filter(|s| s != "none"),
     }
 }
 
 fn convert_para_props(pp: &docx_rs::ParagraphProperty) -> OelParaProps {
     // Justification.val is a public String ("left", "center", "right", "both", etc.)
-    let alignment = pp.alignment.as_ref().map(|j| match j.val.as_str() {
-        "center" => Alignment::Center,
-        "right" | "end" => Alignment::Right,
-        "both" | "distribute" | "highKashida" | "lowKashida" | "mediumKashida" => Alignment::Justify,
-        _ => Alignment::Left,
-    }).unwrap_or_default();
+    let alignment = pp
+        .alignment
+        .as_ref()
+        .map(|j| match j.val.as_str() {
+            "center" => Alignment::Center,
+            "right" | "end" => Alignment::Right,
+            "both" | "distribute" | "highKashida" | "lowKashida" | "mediumKashida" => {
+                Alignment::Justify
+            }
+            _ => Alignment::Left,
+        })
+        .unwrap_or_default();
 
     let (list_type, indent_level) = if let Some(num) = &pp.numbering_property {
         let level = num.level.as_ref().map(|l| l.val as u32).unwrap_or(0);
@@ -163,8 +225,14 @@ fn convert_para_props(pp: &docx_rs::ParagraphProperty) -> OelParaProps {
     };
 
     // LineSpacing fields (before, after) are private; extract via serde (camelCase keys)
-    let spacing_before = pp.line_spacing.as_ref().and_then(|s| serde_u32_field(s, "before"));
-    let spacing_after  = pp.line_spacing.as_ref().and_then(|s| serde_u32_field(s, "after"));
+    let spacing_before = pp
+        .line_spacing
+        .as_ref()
+        .and_then(|s| serde_u32_field(s, "before"));
+    let spacing_after = pp
+        .line_spacing
+        .as_ref()
+        .and_then(|s| serde_u32_field(s, "after"));
 
     OelParaProps {
         alignment,
@@ -181,7 +249,8 @@ fn convert_section(docx: &Docx) -> OelSectionProps {
     let sp = &docx.document.section_property;
 
     // PageSize has private w/h fields; extract via serde (camelCase)
-    let (page_width, page_height) = serde_json::to_value(&sp.page_size).ok()
+    let (page_width, page_height) = serde_json::to_value(&sp.page_size)
+        .ok()
         .and_then(|j| {
             let w = j.get("w")?.as_u64()? as u32;
             let h = j.get("h")?.as_u64()? as u32;

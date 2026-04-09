@@ -1,6 +1,6 @@
-use serde::{Deserialize, Serialize};
 use crate::model::{Alignment, ListType};
 use crate::render::RenderDocument;
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CursorState {
@@ -31,6 +31,7 @@ pub struct FormatState {
     pub alignment: Alignment,
     pub list_type: Option<ListType>,
     pub is_in_table: bool,
+    pub current_style_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
