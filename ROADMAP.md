@@ -5,15 +5,15 @@ This roadmap tracks the development of features required to bring OutilsEnLigne'
 ## 🟢 Phase 1: Core Typography & The Color Picker
 
 ### 1.1 Text Alignment & Spacing
-- [ ] **[Rust Parser]** Extract `<w:jc>` (Justification) and `<w:spacing>` from `w:pPr`.
-- [ ] **[Rust Model]** Add `alignment` and `spacing` fields to `ParagraphStyle` in `OelDocument` and `RenderDocument`.
-- [ ] **[React UI]** Map Rust `alignment` to CSS `text-align` and `spacing` to `margin`/`line-height`.
-- [ ] **[Rust & React]** Implement `ApplyParagraphAlignmentCommand` and wire to UI buttons.
+- [x] **[Rust Parser]** Extract `<w:jc>` (Justification) and `<w:spacing>` from `w:pPr`.
+- [x] **[Rust Model]** Add `alignment` and `spacing` fields to `ParagraphStyle` in `OelDocument` and `RenderDocument`.
+- [x] **[React UI]** Map Rust `alignment` to CSS `text-align` and `spacing` to `margin`/`line-height`.
+- [x] **[Rust & React]** Implement `ApplyParagraphAlignmentCommand` and wire to UI buttons.
 
 ### 1.2 Custom Color Picker Component
-- [ ] **[React UI]** Build `ColorPicker` component (Hex, RGB, Word's default palette).
-- [ ] **[Rust Parser]** Parse `<w:color>` and `<w:highlight>` in `w:rPr`, normalizing Hex codes.
-- [ ] **[Rust & React]** Implement `ApplyTextColorCommand` and `ApplyTextHighlightCommand`. Hook up to `ColorPicker`.
+- [x] **[React UI]** Build `ColorPicker` component (Hex, RGB, Word's default palette).
+- [x] **[Rust Parser]** Parse `<w:color>` and `<w:highlight>` in `w:rPr`, normalizing Hex codes.
+- [x] **[Rust & React]** Implement `ApplyTextColorCommand` and `ApplyTextHighlightCommand`. Hook up to `ColorPicker`.
 
 ---
 
