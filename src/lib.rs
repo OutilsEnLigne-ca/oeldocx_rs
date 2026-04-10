@@ -18,3 +18,4 @@ pub mod state;
 pub mod wasm;
 
 pub use wasm::bindings::DocxController;
+pub mod fonts;
