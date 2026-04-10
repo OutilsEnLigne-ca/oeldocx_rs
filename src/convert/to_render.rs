@@ -126,6 +126,7 @@ fn convert_paragraph(
         list_index,
         spacing_before_pt,
         spacing_after_pt,
+        line_spacing: para.props.line_spacing,
         spans,
     }
 }

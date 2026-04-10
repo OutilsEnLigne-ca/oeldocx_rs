@@ -94,6 +94,9 @@ pub struct RenderParagraph {
     pub list_index: Option<u32>,
     pub spacing_before_pt: f32,
     pub spacing_after_pt: f32,
+    /// Unitless CSS line-height multiplier (1.0 = single, 1.5 = one-and-a-half, 2.0 = double).
+    /// None means use the renderer default.
+    pub line_spacing: Option<f32>,
     pub spans: Vec<RenderSpan>,
 }
 

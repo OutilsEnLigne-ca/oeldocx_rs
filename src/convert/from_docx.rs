@@ -338,7 +338,9 @@ fn convert_para_props(pp: &docx_rs::ParagraphProperty) -> OelParaProps {
         (None, 0)
     };
 
-    // LineSpacing fields (before, after) are private; extract via serde (camelCase keys)
+    // LineSpacing fields are private; extract via serde (camelCase keys).
+    // `line` is in 240ths-of-a-line when lineRule="auto" (240=1×, 360=1.5×, 480=2×).
+    // `before`/`after` are in twips.
     let spacing_before = pp
         .line_spacing
         .as_ref()
@@ -347,6 +349,17 @@ fn convert_para_props(pp: &docx_rs::ParagraphProperty) -> OelParaProps {
         .line_spacing
         .as_ref()
         .and_then(|s| serde_u32_field(s, "after"));
+    let line_spacing = pp.line_spacing.as_ref().and_then(|s| {
+        let json = serde_json::to_value(s).ok()?;
+        let line = json.get("line")?.as_i64()? as f32;
+        let rule = json
+            .get("lineRule")
+            .and_then(|r| r.as_str())
+            .unwrap_or("auto");
+        // Only "auto" maps cleanly to a unitless CSS multiplier.
+        // "exact" / "atLeast" are absolute twip heights — skip for now.
+        if rule == "auto" { Some(line / 240.0) } else { None }
+    });
 
     OelParaProps {
         alignment,
@@ -354,7 +367,7 @@ fn convert_para_props(pp: &docx_rs::ParagraphProperty) -> OelParaProps {
         list_type,
         spacing_before,
         spacing_after,
-        line_spacing: None,
+        line_spacing,
         style_id: pp.style.as_ref().map(|s| s.val.clone()),
     }
 }
