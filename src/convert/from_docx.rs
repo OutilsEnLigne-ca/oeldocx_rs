@@ -20,16 +20,35 @@ pub fn docx_to_oel(docx: &Docx) -> OelDocument {
     let mut styles = OelDocument::empty().styles;
 
     if let Some(normal) = styles.get_mut("Normal") {
-        let default_rp =
-            convert_run_props(&docx.styles.doc_defaults.run_property_default.run_property);
-        if let Some(ff) = default_rp.font_family {
-            normal.run_props.font_family = Some(ff);
-        }
-        if let Some(sz) = default_rp.font_size {
-            normal.run_props.font_size = Some(sz);
-        }
-        if let Some(color) = default_rp.color {
-            normal.run_props.color = Some(color);
+        if let Ok(json_val) = serde_json::to_value(&docx.styles.doc_defaults) {
+            if let Some(rp) = json_val
+                .get("runPropertyDefault")
+                .and_then(|r| r.get("runProperty"))
+            {
+                if let Some(ff) = rp
+                    .get("fonts")
+                    .and_then(|f| f.get("ascii"))
+                    .and_then(|a| a.as_str())
+                {
+                    normal.run_props.font_family = Some(ff.to_string());
+                }
+                if let Some(sz) = rp
+                    .get("sz")
+                    .and_then(|s| s.get("val"))
+                    .and_then(|v| v.as_u64())
+                {
+                    normal.run_props.font_size = Some(sz as u32);
+                }
+                if let Some(color) = rp
+                    .get("color")
+                    .and_then(|c| c.get("val"))
+                    .and_then(|v| v.as_str())
+                {
+                    if color != "auto" && !color.is_empty() {
+                        normal.run_props.color = Some(color.to_string());
+                    }
+                }
+            }
         }
     }
 
