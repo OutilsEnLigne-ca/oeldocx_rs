@@ -1,10 +1,9 @@
-use wasm_bindgen::prelude::*;
 use crate::controller::DocxController as InnerController;
 use crate::state::EditorState;
+use wasm_bindgen::prelude::*;
 
 fn to_js(state: &EditorState) -> Result<JsValue, JsValue> {
-    serde_wasm_bindgen::to_value(state)
-        .map_err(|e| JsValue::from_str(&e.to_string()))
+    serde_wasm_bindgen::to_value(state).map_err(|e| JsValue::from_str(&e.to_string()))
 }
 
 fn err_js(msg: impl std::fmt::Display) -> JsValue {
@@ -16,6 +15,50 @@ fn err_js(msg: impl std::fmt::Display) -> JsValue {
 /// Every mutating method returns the new `EditorState` as a JS object.
 /// Call `get_state()` at any time to read the current state without mutating.
 #[wasm_bindgen]
+pub struct JsExtractedFont {
+    name: String,
+    style: String,
+    data: Vec<u8>,
+}
+
+#[wasm_bindgen]
+impl JsExtractedFont {
+    #[wasm_bindgen(getter)]
+    pub fn name(&self) -> String {
+        self.name.clone()
+    }
+
+    #[wasm_bindgen(getter)]
+    pub fn style(&self) -> String {
+        self.style.clone()
+    }
+
+    #[wasm_bindgen(getter)]
+    pub fn data(&self) -> js_sys::Uint8Array {
+        js_sys::Uint8Array::from(self.data.as_slice())
+    }
+}
+
+/// Extract embedded fonts from DOCX bytes without loading the full document.
+#[wasm_bindgen]
+pub fn extract_embedded_fonts(bytes: &[u8]) -> Result<js_sys::Array, JsValue> {
+    crate::fonts::extract_fonts(bytes)
+        .map(|fonts| {
+            let arr = js_sys::Array::new();
+            for f in fonts {
+                let js_font = JsExtractedFont {
+                    name: f.name,
+                    style: f.style,
+                    data: f.data,
+                };
+                arr.push(&JsValue::from(js_font));
+            }
+            arr
+        })
+        .map_err(|e| err_js(e))
+}
+
+#[wasm_bindgen]
 pub struct DocxController {
     inner: InnerController,
 }
@@ -25,7 +68,9 @@ impl DocxController {
     #[wasm_bindgen(constructor)]
     pub fn new() -> DocxController {
         console_error_panic_hook::set_once();
-        DocxController { inner: InnerController::new() }
+        DocxController {
+            inner: InnerController::new(),
+        }
     }
 
     // -------------------------------------------------------------------------
@@ -34,7 +79,8 @@ impl DocxController {
 
     /// Load a DOCX file from raw bytes. Returns the initial `EditorState`.
     pub fn load(&mut self, bytes: &[u8], filename: Option<String>) -> Result<JsValue, JsValue> {
-        self.inner.load(bytes, filename)
+        self.inner
+            .load(bytes, filename)
             .map_err(|e| err_js(e))
             .and_then(|s| to_js(&s))
     }
@@ -46,7 +92,8 @@ impl DocxController {
 
     /// Serialize the current document to DOCX bytes.
     pub fn serialize(&self) -> Result<Box<[u8]>, JsValue> {
-        self.inner.serialize()
+        self.inner
+            .serialize()
             .map(|v| v.into_boxed_slice())
             .map_err(|e| err_js(e))
     }
@@ -78,8 +125,16 @@ impl DocxController {
     ) -> Result<JsValue, JsValue> {
         let opt = |v: i32| if v < 0 { None } else { Some(v as usize) };
         let s = self.inner.set_selection(
-            anchor_block, opt(anchor_row), opt(anchor_col), anchor_inner, anchor_offset,
-            focus_block,  opt(focus_row),  opt(focus_col),  focus_inner,  focus_offset,
+            anchor_block,
+            opt(anchor_row),
+            opt(anchor_col),
+            anchor_inner,
+            anchor_offset,
+            focus_block,
+            opt(focus_row),
+            opt(focus_col),
+            focus_inner,
+            focus_offset,
         );
         to_js(&s)
     }
@@ -235,11 +290,21 @@ impl DocxController {
     }
 
     /// Width and height in twips (1/1440 inch).
-    pub fn set_page_size(&mut self, width_twips: u32, height_twips: u32) -> Result<JsValue, JsValue> {
+    pub fn set_page_size(
+        &mut self,
+        width_twips: u32,
+        height_twips: u32,
+    ) -> Result<JsValue, JsValue> {
         to_js(&self.inner.set_page_size(width_twips, height_twips))
     }
 
-    pub fn set_margins(&mut self, top: u32, right: u32, bottom: u32, left: u32) -> Result<JsValue, JsValue> {
+    pub fn set_margins(
+        &mut self,
+        top: u32,
+        right: u32,
+        bottom: u32,
+        left: u32,
+    ) -> Result<JsValue, JsValue> {
         to_js(&self.inner.set_margins(top, right, bottom, left))
     }
 

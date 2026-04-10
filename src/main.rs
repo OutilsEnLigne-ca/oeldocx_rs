@@ -19,3 +19,13 @@ fn main() {
     println!("fontTable.xml:\n{}", font_table_xml);
     println!("\nfontTable.xml.rels:\n{}", font_table_rels);
 }
+#[test]
+fn test_doc_defaults() {
+    let docx = docx_rs::Docx::new();
+    let defaults = docx.styles.doc_defaults;
+}
+#[test]
+fn test_doc_defaults_print() {
+    let docx = docx_rs::Docx::new();
+    println!("{:#?}", docx.styles.doc_defaults);
+}

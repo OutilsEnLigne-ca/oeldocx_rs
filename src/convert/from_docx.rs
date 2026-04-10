@@ -18,6 +18,21 @@ pub fn docx_to_oel(docx: &Docx) -> OelDocument {
     let section = convert_section(docx);
 
     let mut styles = OelDocument::empty().styles;
+
+    if let Some(normal) = styles.get_mut("Normal") {
+        let default_rp =
+            convert_run_props(&docx.styles.doc_defaults.run_property_default.run_property);
+        if let Some(ff) = default_rp.font_family {
+            normal.run_props.font_family = Some(ff);
+        }
+        if let Some(sz) = default_rp.font_size {
+            normal.run_props.font_size = Some(sz);
+        }
+        if let Some(color) = default_rp.color {
+            normal.run_props.color = Some(color);
+        }
+    }
+
     for style in &docx.styles.styles {
         let run_props = convert_run_props(&style.run_property);
         let para_props = convert_para_props(&style.paragraph_property);
