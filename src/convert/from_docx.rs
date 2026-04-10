@@ -91,6 +91,49 @@ fn convert_document_child(child: &DocumentChild) -> Option<OelBlock> {
                             RunChild::Text(t) => text.push_str(&t.text),
                             RunChild::Tab(_) => text.push('\t'),
                             RunChild::Break(_) => text.push('\n'),
+                            RunChild::Drawing(d) => {
+                                if let Some(docx_rs::DrawingData::Pic(pic)) = &d.data {
+                                    let is_floating = matches!(
+                                        pic.position_type,
+                                        docx_rs::DrawingPositionType::Anchor
+                                    );
+                                    let width_pt = pic.size.0 as f32 / 12700.0;
+                                    let height_pt = pic.size.1 as f32 / 12700.0;
+                                    let (offset_x_pt, offset_y_pt) = if is_floating {
+                                        let ox = match &pic.position_h {
+                                            docx_rs::DrawingPosition::Offset(x) => {
+                                                *x as f32 / 12700.0
+                                            }
+                                            _ => 0.0,
+                                        };
+                                        let oy = match &pic.position_v {
+                                            docx_rs::DrawingPosition::Offset(y) => {
+                                                *y as f32 / 12700.0
+                                            }
+                                            _ => 0.0,
+                                        };
+                                        (ox, oy)
+                                    } else {
+                                        (0.0, 0.0)
+                                    };
+                                    let drawing = crate::model::block::OelDrawing {
+                                        id: pic.id.clone(),
+                                        width_pt,
+                                        height_pt,
+                                        is_floating,
+                                        offset_x_pt,
+                                        offset_y_pt,
+                                        wrapping_mode: convert_wrapping_mode(pic),
+                                    };
+                                    if !text.is_empty() {
+                                        para.runs.push(OelRun::with_props(
+                                            std::mem::take(&mut text),
+                                            props.clone(),
+                                        ));
+                                    }
+                                    para.runs.push(OelRun::with_drawing(drawing, props.clone()));
+                                }
+                            }
                             _ => {}
                         }
                     }
@@ -129,6 +172,43 @@ fn convert_document_child(child: &DocumentChild) -> Option<OelBlock> {
                                                     match rc {
                                                         RunChild::Text(t) => text.push_str(&t.text),
                                                         RunChild::Tab(_) => text.push('\t'),
+                                                        RunChild::Break(_) => text.push('\n'),
+                                                        RunChild::Drawing(d) => {
+                                                            if let Some(docx_rs::DrawingData::Pic(pic)) = &d.data {
+                                                                let is_floating = matches!(
+                                                                    pic.position_type,
+                                                                    docx_rs::DrawingPositionType::Anchor
+                                                                );
+                                                                let width_pt = pic.size.0 as f32 / 12700.0;
+                                                                let height_pt = pic.size.1 as f32 / 12700.0;
+                                                                let (offset_x_pt, offset_y_pt) = if is_floating {
+                                                                    let ox = match &pic.position_h {
+                                                                        docx_rs::DrawingPosition::Offset(x) => *x as f32 / 12700.0,
+                                                                        _ => 0.0,
+                                                                    };
+                                                                    let oy = match &pic.position_v {
+                                                                        docx_rs::DrawingPosition::Offset(y) => *y as f32 / 12700.0,
+                                                                        _ => 0.0,
+                                                                    };
+                                                                    (ox, oy)
+                                                                } else {
+                                                                    (0.0, 0.0)
+                                                                };
+                                                                let drawing = crate::model::block::OelDrawing {
+                                                                    id: pic.id.clone(),
+                                                                    width_pt,
+                                                                    height_pt,
+                                                                    is_floating,
+                                                                    offset_x_pt,
+                                                                    offset_y_pt,
+                                                                    wrapping_mode: convert_wrapping_mode(pic),
+                                                                };
+                                                                if !text.is_empty() {
+                                                                    para.runs.push(OelRun::with_props(std::mem::take(&mut text), props.clone()));
+                                                                }
+                                                                para.runs.push(OelRun::with_drawing(drawing, props.clone()));
+                                                            }
+                                                        }
                                                         _ => {}
                                                     }
                                                 }
@@ -302,4 +382,32 @@ fn convert_section(docx: &Docx) -> OelSectionProps {
         margin_bottom: m.bottom.unsigned_abs(),
         margin_left: m.left.unsigned_abs(),
     }
+}
+
+fn convert_wrapping_mode(pic: &docx_rs::Pic) -> crate::model::block::OelWrappingMode {
+    use crate::model::block::OelWrappingMode;
+    
+    // Pic.position_type is public: Anchor or Inline
+    if matches!(pic.position_type, docx_rs::DrawingPositionType::Inline) {
+        return OelWrappingMode::Inline;
+    }
+
+    // pic.wrap is private in docx-rs 0.4. Extract it via serde.
+    if let Ok(json) = serde_json::to_value(pic) {
+        if let Some(wrap) = json.get("wrap") {
+            if let Some(mode) = wrap.as_str() {
+                return match mode {
+                    "square" => OelWrappingMode::Square,
+                    "tight" => OelWrappingMode::Tight,
+                    "through" => OelWrappingMode::Through,
+                    "topAndBottom" => OelWrappingMode::TopAndBottom,
+                    "behindText" => OelWrappingMode::BehindText,
+                    "inFrontOfText" => OelWrappingMode::InFrontOfText,
+                    _ => OelWrappingMode::Square, // Default for anchored
+                };
+            }
+        }
+    }
+    
+    OelWrappingMode::Square // Default fallback for floating
 }

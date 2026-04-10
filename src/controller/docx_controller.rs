@@ -33,6 +33,7 @@ impl std::fmt::Display for ControllerError {
 /// cursor/selection, and the history (undo/redo) stack. It receives editing
 /// commands, mutates the document, and produces state snapshots for the frontend.
 pub struct DocxController {
+    pub images: std::collections::HashMap<String, String>,
     pub document: OelDocument,
     pub selection: DocSelection,
     pub undo_stack: UndoStack,
@@ -46,6 +47,7 @@ pub struct DocxController {
 impl DocxController {
     pub fn new() -> Self {
         Self {
+            images: std::collections::HashMap::new(),
             document: OelDocument::empty(),
             selection: DocSelection::default(),
             undo_stack: UndoStack::new(),
@@ -67,6 +69,14 @@ impl DocxController {
         let docx =
             docx_rs::read_docx(bytes).map_err(|e| ControllerError::ParseError(e.to_string()))?;
 
+        self.images.clear();
+        use base64::Engine;
+        for (id, _path, _img, png) in &docx.images {
+            let b64 = base64::engine::general_purpose::STANDARD.encode(&png.0);
+            self.images
+                .insert(id.clone(), format!("data:image/png;base64,{}", b64));
+        }
+
         self.document = docx_to_oel(&docx);
         self.selection = DocSelection::default();
         self.undo_stack.clear();
@@ -78,6 +88,7 @@ impl DocxController {
     }
 
     pub fn new_document(&mut self) -> EditorState {
+        self.images.clear();
         self.document = OelDocument::empty();
         self.selection = DocSelection::default();
         self.undo_stack.clear();

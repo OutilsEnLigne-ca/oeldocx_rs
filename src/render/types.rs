@@ -48,12 +48,36 @@ impl Default for RenderFormat {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub enum RenderWrappingMode {
+    Inline,
+    Square,
+    Tight,
+    Through,
+    TopAndBottom,
+    BehindText,
+    InFrontOfText,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RenderDrawing {
+    pub id: String,
+    pub width_pt: f32,
+    pub height_pt: f32,
+    pub is_floating: bool,
+    pub offset_x_pt: f32,
+    pub offset_y_pt: f32,
+    pub wrapping_mode: RenderWrappingMode,
+}
+
 /// A contiguous span of text with uniform formatting.
 /// `char_start` and `char_end` are relative to the start of the parent paragraph
 /// and are used by the React renderer to position the cursor overlay.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RenderSpan {
     pub text: String,
+    pub drawing: Option<RenderDrawing>,
     pub format: RenderFormat,
     pub char_start: usize,
     pub char_end: usize,

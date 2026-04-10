@@ -103,6 +103,13 @@ impl DocxController {
         to_js(&self.inner.get_state())
     }
 
+    /// Get all extracted images as a record of ID to Base64 data URL.
+    pub fn get_images(&self) -> Result<JsValue, JsValue> {
+        use serde::Serialize;
+        let serializer = serde_wasm_bindgen::Serializer::new().serialize_maps_as_objects(true);
+        self.inner.images.serialize(&serializer).map_err(|e| err_js(e))
+    }
+
     // -------------------------------------------------------------------------
     // Cursor / Selection
     // -------------------------------------------------------------------------

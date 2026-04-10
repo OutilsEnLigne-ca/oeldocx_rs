@@ -1,10 +1,34 @@
+use super::style::{OelParaProps, OelRunProps, OelTableCellProps, OelTableProps};
 use serde::{Deserialize, Serialize};
-use super::style::{OelParaProps, OelRunProps, OelTableProps, OelTableCellProps};
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub enum OelWrappingMode {
+    Inline,
+    Square,
+    Tight,
+    Through,
+    TopAndBottom,
+    BehindText,
+    InFrontOfText,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct OelDrawing {
+    pub id: String,
+    pub width_pt: f32,
+    pub height_pt: f32,
+    pub is_floating: bool,
+    pub offset_x_pt: f32,
+    pub offset_y_pt: f32,
+    pub wrapping_mode: OelWrappingMode,
+}
 
 /// A text run: contiguous text with uniform formatting.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OelRun {
     pub text: String,
+    pub drawing: Option<OelDrawing>,
     pub props: OelRunProps,
 }
 
@@ -12,17 +36,30 @@ impl OelRun {
     pub fn new(text: impl Into<String>) -> Self {
         Self {
             text: text.into(),
+            drawing: None,
             props: OelRunProps::default(),
         }
     }
 
     pub fn with_props(text: impl Into<String>, props: OelRunProps) -> Self {
-        Self { text: text.into(), props }
+        Self {
+            text: text.into(),
+            drawing: None,
+            props,
+        }
+    }
+
+    pub fn with_drawing(drawing: OelDrawing, props: OelRunProps) -> Self {
+        Self {
+            text: String::new(),
+            drawing: Some(drawing),
+            props,
+        }
     }
 
     /// Number of Unicode scalar values (chars) in this run.
     pub fn char_len(&self) -> usize {
-        self.text.chars().count()
+        self.text.chars().count() + if self.drawing.is_some() { 1 } else { 0 }
     }
 }
 
@@ -67,7 +104,7 @@ impl OelParagraph {
         let mut merged: Vec<OelRun> = Vec::new();
         for run in self.runs.drain(..) {
             if let Some(last) = merged.last_mut() {
-                if last.props == run.props {
+                if last.props == run.props && last.drawing.is_none() && run.drawing.is_none() {
                     last.text.push_str(&run.text);
                     continue;
                 }
@@ -90,7 +127,8 @@ impl OelTableCell {
             blocks: Vec::new(),
             props: OelTableCellProps::default(),
         };
-        cell.blocks.push(OelBlock::Paragraph(OelParagraph::new(next_id())));
+        cell.blocks
+            .push(OelBlock::Paragraph(OelParagraph::new(next_id())));
         cell
     }
 }

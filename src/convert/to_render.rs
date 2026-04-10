@@ -1,8 +1,8 @@
 use crate::model::{ListType, OelBlock, OelDocument, OelParagraph, OelRunProps, OelTable};
 use crate::render::{
     DEFAULT_COLOR, DEFAULT_FONT_FAMILY, DEFAULT_FONT_SIZE_PT, HALFPT_TO_PT, RenderBlock,
-    RenderDocument, RenderFormat, RenderParagraph, RenderSectionProps, RenderSpan, RenderTable,
-    RenderTableCell, RenderTableRow, TWIPS_TO_PT,
+    RenderDocument, RenderDrawing, RenderFormat, RenderParagraph, RenderSectionProps, RenderSpan,
+    RenderTable, RenderTableCell, RenderTableRow, TWIPS_TO_PT,
 };
 
 pub fn oel_to_render(doc: &OelDocument) -> RenderDocument {
@@ -79,6 +79,37 @@ fn convert_paragraph(
 
             RenderSpan {
                 text: run.text.clone(),
+                drawing: run.drawing.as_ref().map(|d| RenderDrawing {
+                    id: d.id.clone(),
+                    width_pt: d.width_pt,
+                    height_pt: d.height_pt,
+                    is_floating: d.is_floating,
+                    offset_x_pt: d.offset_x_pt,
+                    offset_y_pt: d.offset_y_pt,
+                    wrapping_mode: match d.wrapping_mode {
+                        crate::model::block::OelWrappingMode::Inline => {
+                            crate::render::RenderWrappingMode::Inline
+                        }
+                        crate::model::block::OelWrappingMode::Square => {
+                            crate::render::RenderWrappingMode::Square
+                        }
+                        crate::model::block::OelWrappingMode::Tight => {
+                            crate::render::RenderWrappingMode::Tight
+                        }
+                        crate::model::block::OelWrappingMode::Through => {
+                            crate::render::RenderWrappingMode::Through
+                        }
+                        crate::model::block::OelWrappingMode::TopAndBottom => {
+                            crate::render::RenderWrappingMode::TopAndBottom
+                        }
+                        crate::model::block::OelWrappingMode::BehindText => {
+                            crate::render::RenderWrappingMode::BehindText
+                        }
+                        crate::model::block::OelWrappingMode::InFrontOfText => {
+                            crate::render::RenderWrappingMode::InFrontOfText
+                        }
+                    },
+                }),
                 format: resolve_format(&run.props, para.props.style_id.as_deref(), doc),
                 char_start,
                 char_end,
