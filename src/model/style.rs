@@ -1,7 +1,6 @@
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
 pub enum Alignment {
     Left,
     Center,
@@ -56,7 +55,7 @@ impl Default for OelRunProps {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct OelParaProps {
-    pub alignment: Alignment,
+    pub alignment: Option<Alignment>,
     pub indent_level: u32,
     pub list_type: Option<ListType>,
     /// Spacing before paragraph in twips.
@@ -72,7 +71,7 @@ pub struct OelParaProps {
 impl Default for OelParaProps {
     fn default() -> Self {
         Self {
-            alignment: Alignment::default(),
+            alignment: None,
             indent_level: 0,
             list_type: None,
             spacing_before: None,

@@ -328,8 +328,7 @@ fn convert_para_props(pp: &docx_rs::ParagraphProperty) -> OelParaProps {
                 Alignment::Justify
             }
             _ => Alignment::Left,
-        })
-        .unwrap_or_default();
+        });
 
     let (list_type, indent_level) = if let Some(num) = &pp.numbering_property {
         let level = num.level.as_ref().map(|l| l.val as u32).unwrap_or(0);

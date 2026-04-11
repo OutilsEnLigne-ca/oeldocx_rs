@@ -1,4 +1,4 @@
-use crate::model::{ListType, OelBlock, OelDocument, OelParagraph, OelRunProps, OelTable};
+use crate::model::{Alignment, ListType, OelBlock, OelDocument, OelParagraph, OelRunProps, OelTable};
 use crate::render::{
     DEFAULT_COLOR, DEFAULT_FONT_FAMILY, DEFAULT_FONT_SIZE_PT, HALFPT_TO_PT, RenderBlock,
     RenderDocument, RenderDrawing, RenderFormat, RenderParagraph, RenderSectionProps, RenderSpan,
@@ -56,16 +56,37 @@ fn convert_paragraph(
         }
     };
 
+    // Resolve alignment via: direct formatting → style → default Left
+    let style_para_props = para
+        .props
+        .style_id
+        .as_deref()
+        .and_then(|id| doc.styles.get(id))
+        .map(|s| &s.para_props);
+
+    let alignment = para
+        .props
+        .alignment
+        .clone()
+        .or_else(|| style_para_props.and_then(|sp| sp.alignment.clone()))
+        .unwrap_or(Alignment::Left);
+
     let spacing_before_pt = para
         .props
         .spacing_before
+        .or_else(|| style_para_props.and_then(|sp| sp.spacing_before))
         .map(|v| v as f32 * TWIPS_TO_PT)
         .unwrap_or(0.0);
     let spacing_after_pt = para
         .props
         .spacing_after
+        .or_else(|| style_para_props.and_then(|sp| sp.spacing_after))
         .map(|v| v as f32 * TWIPS_TO_PT)
         .unwrap_or(0.0);
+    let line_spacing = para
+        .props
+        .line_spacing
+        .or_else(|| style_para_props.and_then(|sp| sp.line_spacing));
 
     let mut char_cursor: usize = 0;
     let spans: Vec<RenderSpan> = para
@@ -120,13 +141,13 @@ fn convert_paragraph(
     RenderParagraph {
         id: para.id.clone(),
         style_id: para.props.style_id.clone(),
-        alignment: para.props.alignment.clone(),
+        alignment,
         indent_level: para.props.indent_level,
         list_type: para.props.list_type.clone(),
         list_index,
         spacing_before_pt,
         spacing_after_pt,
-        line_spacing: para.props.line_spacing,
+        line_spacing,
         spans,
     }
 }

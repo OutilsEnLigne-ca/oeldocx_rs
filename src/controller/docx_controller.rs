@@ -564,7 +564,15 @@ impl DocxController {
             .map(|s| &s.run_props);
 
         let (alignment, list_type) = match para_props {
-            Some(pp) => (pp.alignment.clone(), pp.list_type.clone()),
+            Some(pp) => {
+                // Resolve alignment: direct → style → default Left
+                let alignment = pp.alignment.clone()
+                    .or_else(|| pp.style_id.as_deref()
+                        .and_then(|id| self.document.styles.get(id))
+                        .and_then(|s| s.para_props.alignment.clone()))
+                    .unwrap_or(crate::model::Alignment::Left);
+                (alignment, pp.list_type.clone())
+            }
             None => (crate::model::Alignment::Left, None),
         };
 

@@ -34,7 +34,7 @@ pub fn apply_para_format(
 }
 
 pub fn set_alignment(doc: &mut OelDocument, sel: &DocSelection, alignment: Alignment) {
-    apply_para_format(doc, sel, &move |p| p.alignment = alignment.clone());
+    apply_para_format(doc, sel, &move |p| p.alignment = Some(alignment.clone()));
 }
 
 pub fn set_indent(doc: &mut OelDocument, sel: &DocSelection, level: u32) {

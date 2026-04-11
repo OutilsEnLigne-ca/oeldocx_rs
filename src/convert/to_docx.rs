@@ -124,7 +124,7 @@ fn build_paragraph(para: &OelParagraph) -> docx_rs::Paragraph {
 }
 
 fn apply_para_props(mut p: docx_rs::Paragraph, props: &OelParaProps) -> docx_rs::Paragraph {
-    let align = match props.alignment {
+    let align = match props.alignment.as_ref().unwrap_or(&Alignment::Left) {
         Alignment::Left => AlignmentType::Left,
         Alignment::Center => AlignmentType::Center,
         Alignment::Right => AlignmentType::Right,
