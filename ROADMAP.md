@@ -17,17 +17,17 @@ This roadmap tracks the development of features required to bring OutilsEnLigne'
 
 ---
 
-## 🟡 Phase 2: Lists, Indentation & Outlining
+## 🟢 Phase 2: Lists, Indentation & Outlining
 
 ### 2.1 Numbering Parser Foundation
-- [ ] **[Rust Parser]** Parse `word/numbering.xml`. Create `AbstractNum` and `NumId` lookup table.
-- [ ] **[Rust Model]** Resolve prefixes (`1.`, `a.`, `•`) for paragraphs with `<w:numPr>`.
-- [ ] **[Rust Engine]** Export resolved list types and levels via `RenderDocument`.
+- [x] **[Rust Parser]** Parse `word/numbering.xml`. Create `AbstractNum` and `NumId` lookup table.
+- [x] **[Rust Model]** Resolve prefixes (`1.`, `a.`, `•`) for paragraphs with `<w:numPr>`. Added `num_id` to `OelParaProps` and `RenderParagraph`; counter tracked per `(num_id, level)`.
+- [x] **[Rust Engine]** Export resolved list types and levels via `RenderDocument`.
 
 ### 2.2 Frontend List Rendering
-- [ ] **[React UI]** Map numbering data into semantic `<ul>`, `<ol>`, `<li>` or nested block components.
-- [ ] **[Rust Commands]** Implement `ToggleListCommand` (Bullet/Numbered).
-- [ ] **[Rust Commands]** Implement `ChangeListLevelCommand` (Tab/Shift+Tab) and handle new `NumId` generation.
+- [x] **[React UI]** Multi-level bullet symbols (•, ◦, ▪, ▸, –, ·) cycling by `indent_level`. Numbered counters restart correctly per list.
+- [x] **[Rust Commands]** `toggle_bullet_list` / `toggle_numbered_list` with `num_id` assignment.
+- [x] **[Rust Commands]** `ChangeListLevelCommand` via Tab/Shift+Tab (wired to `increase_indent`/`decrease_indent`).
 
 ---
 

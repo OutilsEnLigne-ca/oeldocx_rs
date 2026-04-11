@@ -58,6 +58,9 @@ pub struct OelParaProps {
     pub alignment: Option<Alignment>,
     pub indent_level: u32,
     pub list_type: Option<ListType>,
+    /// The `w:numId` from the paragraph's `<w:numPr>`. Used to track per-list counters
+    /// and to distinguish separate lists from each other.
+    pub num_id: Option<u32>,
     /// Spacing before paragraph in twips.
     pub spacing_before: Option<u32>,
     /// Spacing after paragraph in twips.
@@ -74,6 +77,7 @@ impl Default for OelParaProps {
             alignment: None,
             indent_level: 0,
             list_type: None,
+            num_id: None,
             spacing_before: None,
             spacing_after: None,
             line_spacing: None,

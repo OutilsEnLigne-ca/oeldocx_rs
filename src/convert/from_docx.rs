@@ -8,11 +8,33 @@ use docx_rs::{
 use std::collections::HashMap;
 
 pub fn docx_to_oel(docx: &Docx) -> OelDocument {
+    // Build numbering lookup tables from word/numbering.xml so we can resolve
+    // the correct ListType (Bullet vs Numbered) for each paragraph.
+    //
+    // DOCX numbering hierarchy:
+    //   <w:num w:numId="N">          → references an abstractNum
+    //     <w:abstractNumId w:val="M"/>
+    //   <w:abstractNum w:abstractNumId="M">
+    //     <w:lvl w:ilvl="0">
+    //       <w:numFmt w:val="bullet"/>   ← "bullet" | "decimal" | "lowerLetter" | …
+    //
+    // We build: numId → abstractNumId, then (abstractNumId, level) → numFmt string.
+    let mut num_id_to_abstract: HashMap<usize, usize> = HashMap::new();
+    for num in &docx.numberings.numberings {
+        num_id_to_abstract.insert(num.id, num.abstract_num_id);
+    }
+    let mut abstract_level_fmt: HashMap<(usize, usize), String> = HashMap::new();
+    for abs_num in &docx.numberings.abstract_nums {
+        for level in &abs_num.levels {
+            abstract_level_fmt.insert((abs_num.id, level.level), level.format.val.clone());
+        }
+    }
+
     let blocks = docx
         .document
         .children
         .iter()
-        .filter_map(convert_document_child)
+        .filter_map(|c| convert_document_child(c, &num_id_to_abstract, &abstract_level_fmt))
         .collect();
 
     let section = convert_section(docx);
@@ -54,7 +76,8 @@ pub fn docx_to_oel(docx: &Docx) -> OelDocument {
 
     for style in &docx.styles.styles {
         let run_props = convert_run_props(&style.run_property);
-        let para_props = convert_para_props(&style.paragraph_property);
+        // Styles don't reference numbering.xml instances, so an empty lookup is fine here.
+        let para_props = convert_para_props(&style.paragraph_property, &HashMap::new(), &HashMap::new());
 
         let name = serde_str_field(&style.name, "val").unwrap_or_else(|| style.style_id.clone());
 
@@ -76,11 +99,15 @@ pub fn docx_to_oel(docx: &Docx) -> OelDocument {
     }
 }
 
-fn convert_document_child(child: &DocumentChild) -> Option<OelBlock> {
+fn convert_document_child(
+    child: &DocumentChild,
+    num_id_to_abstract: &HashMap<usize, usize>,
+    abstract_level_fmt: &HashMap<(usize, usize), String>,
+) -> Option<OelBlock> {
     match child {
         DocumentChild::Paragraph(p) => {
             let mut para = OelParagraph::new(next_id());
-            para.props = convert_para_props(&p.property);
+            para.props = convert_para_props(&p.property, num_id_to_abstract, abstract_level_fmt);
 
             for pc in &p.children {
                 if let ParagraphChild::Run(run) = pc {
@@ -163,7 +190,7 @@ fn convert_document_child(child: &DocumentChild) -> Option<OelBlock> {
                                 .filter_map(|content| match content {
                                     TableCellContent::Paragraph(p) => {
                                         let mut para = OelParagraph::new(next_id());
-                                        para.props = convert_para_props(&p.property);
+                                        para.props = convert_para_props(&p.property, num_id_to_abstract, abstract_level_fmt);
                                         for pc in &p.children {
                                             if let ParagraphChild::Run(run) = pc {
                                                 let props = convert_run_props(&run.run_property);
@@ -316,25 +343,41 @@ fn convert_run_props(rp: &docx_rs::RunProperty) -> OelRunProps {
     }
 }
 
-fn convert_para_props(pp: &docx_rs::ParagraphProperty) -> OelParaProps {
-    // Justification.val is a public String ("left", "center", "right", "both", etc.)
-    let alignment = pp
-        .alignment
-        .as_ref()
-        .map(|j| match j.val.as_str() {
-            "center" => Alignment::Center,
-            "right" | "end" => Alignment::Right,
-            "both" | "distribute" | "highKashida" | "lowKashida" | "mediumKashida" => {
-                Alignment::Justify
-            }
-            _ => Alignment::Left,
-        });
+fn convert_para_props(
+    pp: &docx_rs::ParagraphProperty,
+    num_id_to_abstract: &HashMap<usize, usize>,
+    abstract_level_fmt: &HashMap<(usize, usize), String>,
+) -> OelParaProps {
+    // Justification.val is a public String ("left", "center", "right", "both", etc.).
+    // Keep None when absent so style-level alignment can be inherited in the renderer.
+    let alignment = pp.alignment.as_ref().map(|j| match j.val.as_str() {
+        "center" => Alignment::Center,
+        "right" | "end" => Alignment::Right,
+        "both" | "distribute" | "highKashida" | "lowKashida" | "mediumKashida" => {
+            Alignment::Justify
+        }
+        _ => Alignment::Left,
+    });
 
-    let (list_type, indent_level) = if let Some(num) = &pp.numbering_property {
+    // Resolve ListType from numbering.xml instead of assuming everything is Bullet.
+    // DOCX: numFmt="bullet" → Bullet; any other format (decimal, lowerLetter…) → Numbered.
+    let (list_type, indent_level, num_id) = if let Some(num) = &pp.numbering_property {
+        let raw_num_id = num.id.as_ref().map(|n| n.id).unwrap_or(0);
         let level = num.level.as_ref().map(|l| l.val as u32).unwrap_or(0);
-        (Some(ListType::Bullet), level)
+
+        let num_fmt = num_id_to_abstract
+            .get(&raw_num_id)
+            .and_then(|abs_id| abstract_level_fmt.get(&(*abs_id, level as usize)))
+            .map(|s| s.as_str());
+
+        let list_type = match num_fmt {
+            Some("bullet") => ListType::Bullet,
+            _ => ListType::Numbered,
+        };
+
+        (Some(list_type), level, Some(raw_num_id as u32))
     } else {
-        (None, 0)
+        (None, 0, None)
     };
 
     // LineSpacing fields are private; extract via serde (camelCase keys).
@@ -364,6 +407,7 @@ fn convert_para_props(pp: &docx_rs::ParagraphProperty) -> OelParaProps {
         alignment,
         indent_level,
         list_type,
+        num_id,
         spacing_before,
         spacing_after,
         line_spacing,

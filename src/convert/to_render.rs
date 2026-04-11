@@ -4,6 +4,7 @@ use crate::render::{
     RenderDocument, RenderDrawing, RenderFormat, RenderParagraph, RenderSectionProps, RenderSpan,
     RenderTable, RenderTableCell, RenderTableRow, TWIPS_TO_PT,
 };
+use std::collections::HashMap;
 
 pub fn oel_to_render(doc: &OelDocument) -> RenderDocument {
     let section = RenderSectionProps {
@@ -15,23 +16,29 @@ pub fn oel_to_render(doc: &OelDocument) -> RenderDocument {
         margin_left_pt: doc.section.margin_left as f32 * TWIPS_TO_PT,
     };
 
-    let mut numbered_counter: u32 = 0;
+    // Counters keyed by (num_id, level) so each distinct list restarts at 1
+    // and sub-levels count independently.
+    let mut list_counters: HashMap<(u32, u32), u32> = HashMap::new();
 
     let blocks = doc
         .blocks
         .iter()
-        .map(|block| convert_block(block, doc, &mut numbered_counter))
+        .map(|block| convert_block(block, doc, &mut list_counters))
         .collect();
 
     RenderDocument { blocks, section }
 }
 
-fn convert_block(block: &OelBlock, doc: &OelDocument, numbered_counter: &mut u32) -> RenderBlock {
+fn convert_block(
+    block: &OelBlock,
+    doc: &OelDocument,
+    list_counters: &mut HashMap<(u32, u32), u32>,
+) -> RenderBlock {
     match block {
         OelBlock::Paragraph(p) => {
-            RenderBlock::Paragraph(convert_paragraph(p, doc, numbered_counter))
+            RenderBlock::Paragraph(convert_paragraph(p, doc, list_counters))
         }
-        OelBlock::Table(t) => RenderBlock::Table(convert_table(t, doc, numbered_counter)),
+        OelBlock::Table(t) => RenderBlock::Table(convert_table(t, doc, list_counters)),
         OelBlock::PageBreak => RenderBlock::PageBreak,
     }
 }
@@ -39,21 +46,20 @@ fn convert_block(block: &OelBlock, doc: &OelDocument, numbered_counter: &mut u32
 fn convert_paragraph(
     para: &OelParagraph,
     doc: &OelDocument,
-    numbered_counter: &mut u32,
+    list_counters: &mut HashMap<(u32, u32), u32>,
 ) -> RenderParagraph {
-    let list_index = match &para.props.list_type {
-        Some(ListType::Numbered) => {
-            *numbered_counter += 1;
-            Some(*numbered_counter)
+    // Resolve list_index per (num_id, level) so each distinct list restarts from 1
+    // and sub-levels are independent of their parents.
+    let list_index = match (&para.props.list_type, para.props.num_id) {
+        (Some(ListType::Numbered), Some(num_id)) => {
+            let level = para.props.indent_level;
+            // Reset deeper levels so they restart when re-entered, then increment this level
+            list_counters.retain(|&(nid, lvl), _| !(nid == num_id && lvl > level));
+            let counter = list_counters.entry((num_id, level)).or_insert(0);
+            *counter += 1;
+            Some(*counter)
         }
-        Some(ListType::Bullet) => {
-            *numbered_counter = 0;
-            None
-        }
-        None => {
-            *numbered_counter = 0;
-            None
-        }
+        _ => None,
     };
 
     // Resolve alignment via: direct formatting → style → default Left
@@ -144,6 +150,7 @@ fn convert_paragraph(
         alignment,
         indent_level: para.props.indent_level,
         list_type: para.props.list_type.clone(),
+        num_id: para.props.num_id,
         list_index,
         spacing_before_pt,
         spacing_after_pt,
@@ -152,7 +159,11 @@ fn convert_paragraph(
     }
 }
 
-fn convert_table(table: &OelTable, doc: &OelDocument, numbered_counter: &mut u32) -> RenderTable {
+fn convert_table(
+    table: &OelTable,
+    doc: &OelDocument,
+    list_counters: &mut HashMap<(u32, u32), u32>,
+) -> RenderTable {
     let rows = table
         .rows
         .iter()
@@ -164,7 +175,7 @@ fn convert_table(table: &OelTable, doc: &OelDocument, numbered_counter: &mut u32
                     let blocks = cell
                         .blocks
                         .iter()
-                        .map(|b| convert_block(b, doc, numbered_counter))
+                        .map(|b| convert_block(b, doc, list_counters))
                         .collect();
                     RenderTableCell {
                         blocks,

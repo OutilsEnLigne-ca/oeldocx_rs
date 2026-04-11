@@ -49,6 +49,11 @@ pub fn decrease_indent(doc: &mut OelDocument, sel: &DocSelection) {
     apply_para_format(doc, sel, &|p| p.indent_level = p.indent_level.saturating_sub(1));
 }
 
+/// numId used for user-created bullet lists (matches BULLET_NUM_ID in to_docx.rs)
+const BULLET_NUM_ID: u32 = 1;
+/// numId used for user-created numbered lists (matches NUMBERED_NUM_ID in to_docx.rs)
+const NUMBERED_NUM_ID: u32 = 2;
+
 pub fn toggle_bullet_list(doc: &mut OelDocument, sel: &DocSelection) {
     let (start, end) = sel.ordered();
     let all_bullets = (start.block_idx..=end.block_idx).all(|idx| {
@@ -58,8 +63,11 @@ pub fn toggle_bullet_list(doc: &mut OelDocument, sel: &DocSelection) {
         )
     });
 
-    let new_type = if all_bullets { None } else { Some(ListType::Bullet) };
-    apply_para_format(doc, sel, &move |p| p.list_type = new_type.clone());
+    if all_bullets {
+        apply_para_format(doc, sel, &|p| { p.list_type = None; p.num_id = None; });
+    } else {
+        apply_para_format(doc, sel, &|p| { p.list_type = Some(ListType::Bullet); p.num_id = Some(BULLET_NUM_ID); });
+    }
 }
 
 pub fn toggle_numbered_list(doc: &mut OelDocument, sel: &DocSelection) {
@@ -71,8 +79,11 @@ pub fn toggle_numbered_list(doc: &mut OelDocument, sel: &DocSelection) {
         )
     });
 
-    let new_type = if all_numbered { None } else { Some(ListType::Numbered) };
-    apply_para_format(doc, sel, &move |p| p.list_type = new_type.clone());
+    if all_numbered {
+        apply_para_format(doc, sel, &|p| { p.list_type = None; p.num_id = None; });
+    } else {
+        apply_para_format(doc, sel, &|p| { p.list_type = Some(ListType::Numbered); p.num_id = Some(NUMBERED_NUM_ID); });
+    }
 }
 
 pub fn set_line_spacing(doc: &mut OelDocument, sel: &DocSelection, multiplier: f32) {

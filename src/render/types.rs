@@ -90,7 +90,11 @@ pub struct RenderParagraph {
     pub alignment: Alignment,
     pub indent_level: u32,
     pub list_type: Option<ListType>,
-    /// Resolved counter for numbered lists (1-based). None for bullets or non-list.
+    /// The originating `w:numId`. Used by the frontend to group consecutive paragraphs
+    /// into the same logical list (for counter restart detection).
+    pub num_id: Option<u32>,
+    /// Resolved counter for numbered lists (1-based), scoped per (num_id, level).
+    /// None for bullets or non-list paragraphs.
     pub list_index: Option<u32>,
     pub spacing_before_pt: f32,
     pub spacing_after_pt: f32,
