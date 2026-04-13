@@ -1,5 +1,5 @@
-use crate::model::{OelDocument, OelBlock, OelParagraph, OelParaProps, Alignment, ListType};
 use crate::cursor::DocSelection;
+use crate::model::{Alignment, ListType, OelBlock, OelDocument, OelParaProps, OelParagraph};
 
 /// Apply a paragraph-property mutation to all paragraphs touched by the selection.
 pub fn apply_para_format(
@@ -42,11 +42,15 @@ pub fn set_indent(doc: &mut OelDocument, sel: &DocSelection, level: u32) {
 }
 
 pub fn increase_indent(doc: &mut OelDocument, sel: &DocSelection) {
-    apply_para_format(doc, sel, &|p| p.indent_level = p.indent_level.saturating_add(1));
+    apply_para_format(doc, sel, &|p| {
+        p.indent_level = p.indent_level.saturating_add(1)
+    });
 }
 
 pub fn decrease_indent(doc: &mut OelDocument, sel: &DocSelection) {
-    apply_para_format(doc, sel, &|p| p.indent_level = p.indent_level.saturating_sub(1));
+    apply_para_format(doc, sel, &|p| {
+        p.indent_level = p.indent_level.saturating_sub(1)
+    });
 }
 
 /// numId used for user-created bullet lists (matches BULLET_NUM_ID in to_docx.rs)
@@ -64,9 +68,15 @@ pub fn toggle_bullet_list(doc: &mut OelDocument, sel: &DocSelection) {
     });
 
     if all_bullets {
-        apply_para_format(doc, sel, &|p| { p.list_type = None; p.num_id = None; });
+        apply_para_format(doc, sel, &|p| {
+            p.list_type = None;
+            p.num_id = None;
+        });
     } else {
-        apply_para_format(doc, sel, &|p| { p.list_type = Some(ListType::Bullet); p.num_id = Some(BULLET_NUM_ID); });
+        apply_para_format(doc, sel, &|p| {
+            p.list_type = Some(ListType::Bullet);
+            p.num_id = Some(BULLET_NUM_ID);
+        });
     }
 }
 
@@ -80,9 +90,15 @@ pub fn toggle_numbered_list(doc: &mut OelDocument, sel: &DocSelection) {
     });
 
     if all_numbered {
-        apply_para_format(doc, sel, &|p| { p.list_type = None; p.num_id = None; });
+        apply_para_format(doc, sel, &|p| {
+            p.list_type = None;
+            p.num_id = None;
+        });
     } else {
-        apply_para_format(doc, sel, &|p| { p.list_type = Some(ListType::Numbered); p.num_id = Some(NUMBERED_NUM_ID); });
+        apply_para_format(doc, sel, &|p| {
+            p.list_type = Some(ListType::Numbered);
+            p.num_id = Some(NUMBERED_NUM_ID);
+        });
     }
 }
 
