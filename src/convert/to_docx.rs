@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::io::{Cursor, Write, Seek};
 use docx_rs::{
     self, AlignmentType, AbstractNumbering, Level, NumberFormat, LevelText, LevelJc,
@@ -22,8 +23,8 @@ impl std::fmt::Display for SerializeError {
     }
 }
 
-pub fn oel_to_bytes(doc: &OelDocument) -> Result<Vec<u8>, SerializeError> {
-    let mut docx = build_docx(doc);
+pub fn oel_to_bytes(doc: &OelDocument, image_bytes: &HashMap<String, Vec<u8>>) -> Result<Vec<u8>, SerializeError> {
+    let mut docx = build_docx(doc, image_bytes);
 
     let mut buf = Cursor::new(Vec::new());
     docx.build()
@@ -32,7 +33,7 @@ pub fn oel_to_bytes(doc: &OelDocument) -> Result<Vec<u8>, SerializeError> {
     Ok(buf.into_inner())
 }
 
-fn build_docx(doc: &OelDocument) -> docx_rs::Docx {
+fn build_docx(doc: &OelDocument, image_bytes: &HashMap<String, Vec<u8>>) -> docx_rs::Docx {
     let has_bullets = has_list_type(doc, &ListType::Bullet);
     let has_numbered = has_list_type(doc, &ListType::Numbered);
 
@@ -95,16 +96,16 @@ fn build_docx(doc: &OelDocument) -> docx_rs::Docx {
     }
 
     for block in &doc.blocks {
-        d = add_block(d, block);
+        d = add_block(d, block, image_bytes);
     }
 
     d
 }
 
-fn add_block(mut d: docx_rs::Docx, block: &OelBlock) -> docx_rs::Docx {
+fn add_block(mut d: docx_rs::Docx, block: &OelBlock, image_bytes: &HashMap<String, Vec<u8>>) -> docx_rs::Docx {
     match block {
-        OelBlock::Paragraph(p) => d.add_paragraph(build_paragraph(p)),
-        OelBlock::Table(t) => d.add_table(build_table(t)),
+        OelBlock::Paragraph(p) => d.add_paragraph(build_paragraph(p, image_bytes)),
+        OelBlock::Table(t) => d.add_table(build_table(t, image_bytes)),
         OelBlock::PageBreak => {
             let run = docx_rs::Run::new().add_break(docx_rs::BreakType::Page);
             d.add_paragraph(docx_rs::Paragraph::new().add_run(run))
@@ -112,11 +113,11 @@ fn add_block(mut d: docx_rs::Docx, block: &OelBlock) -> docx_rs::Docx {
     }
 }
 
-fn build_paragraph(para: &OelParagraph) -> docx_rs::Paragraph {
+fn build_paragraph(para: &OelParagraph, image_bytes: &HashMap<String, Vec<u8>>) -> docx_rs::Paragraph {
     let mut p = docx_rs::Paragraph::new();
 
     for run in &para.runs {
-        p = p.add_run(build_run(run));
+        p = p.add_run(build_run(run, image_bytes));
     }
 
     p = apply_para_props(p, &para.props);
@@ -147,7 +148,24 @@ fn apply_para_props(mut p: docx_rs::Paragraph, props: &OelParaProps) -> docx_rs:
     p
 }
 
-fn build_run(run: &OelRun) -> docx_rs::Run {
+fn build_run(run: &OelRun, image_bytes: &HashMap<String, Vec<u8>>) -> docx_rs::Run {
+    if let Some(d) = &run.drawing {
+        let bytes = image_bytes.get(&d.id).cloned().unwrap_or_default();
+        let w_emu = (d.width_pt * 12700.0) as u32;
+        let h_emu = (d.height_pt * 12700.0) as u32;
+        let mut pic = docx_rs::Pic::new_with_dimensions(bytes, 0, 0)
+            .size(w_emu, h_emu)
+            .relative_height(d.z_order);
+        if d.is_floating {
+            pic = pic
+                .floating()
+                .offset_x((d.offset_x_pt * 12700.0) as i32)
+                .offset_y((d.offset_y_pt * 12700.0) as i32)
+                .relative_from_h(d.relative_from_h.parse().unwrap_or_default())
+                .relative_from_v(d.relative_from_v.parse().unwrap_or_default());
+        }
+        return docx_rs::Run::new().add_image(pic);
+    }
     let mut r = docx_rs::Run::new().add_text(&run.text);
     r = apply_run_props(r, &run.props);
     r
@@ -170,20 +188,20 @@ fn apply_run_props(mut r: docx_rs::Run, props: &OelRunProps) -> docx_rs::Run {
     r
 }
 
-fn build_table(table: &OelTable) -> docx_rs::Table {
+fn build_table(table: &OelTable, image_bytes: &HashMap<String, Vec<u8>>) -> docx_rs::Table {
     let rows: Vec<docx_rs::TableRow> = table.rows.iter().map(|row| {
-        let cells: Vec<docx_rs::TableCell> = row.cells.iter().map(build_table_cell).collect();
+        let cells: Vec<docx_rs::TableCell> = row.cells.iter().map(|c| build_table_cell(c, image_bytes)).collect();
         docx_rs::TableRow::new(cells)
     }).collect();
     docx_rs::Table::new(rows)
 }
 
-fn build_table_cell(cell: &OelTableCell) -> docx_rs::TableCell {
+fn build_table_cell(cell: &OelTableCell, image_bytes: &HashMap<String, Vec<u8>>) -> docx_rs::TableCell {
     let mut tc = docx_rs::TableCell::new();
     for block in &cell.blocks {
         match block {
             OelBlock::Paragraph(p) => {
-                tc = tc.add_paragraph(build_paragraph(p));
+                tc = tc.add_paragraph(build_paragraph(p, image_bytes));
             }
             // Nested tables and page breaks inside cells are not supported in Phase 1.
             _ => {}

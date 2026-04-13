@@ -316,6 +316,58 @@ impl DocxController {
     }
 
     // -------------------------------------------------------------------------
+    // Images
+    // -------------------------------------------------------------------------
+
+    /// Insert a PNG image at the current cursor position as an inline drawing.
+    ///
+    /// After this call, invoke `get_images()` to retrieve the new image's data URL.
+    pub fn insert_image(
+        &mut self,
+        data: &[u8],
+        width_pt: f32,
+        height_pt: f32,
+    ) -> Result<JsValue, JsValue> {
+        to_js(&self.inner.insert_image(data.to_vec(), width_pt, height_pt))
+    }
+
+    /// Change the wrapping mode of an image.
+    ///
+    /// `mode` is a camelCase string matching the `OelWrappingMode` enum:
+    /// `"inline"`, `"square"`, `"tight"`, `"through"`, `"topAndBottom"`,
+    /// `"behindText"`, `"inFrontOfText"`.
+    pub fn update_image_wrap(
+        &mut self,
+        image_id: String,
+        mode: String,
+    ) -> Result<JsValue, JsValue> {
+        let wrapping_mode: crate::model::block::OelWrappingMode =
+            serde_json::from_str(&format!("\"{}\"", mode))
+                .map_err(|e| err_js(e))?;
+        to_js(&self.inner.update_image_wrap(&image_id, wrapping_mode))
+    }
+
+    /// Reposition a floating image. `x_pt` and `y_pt` are in points relative to the anchor.
+    pub fn move_image(
+        &mut self,
+        image_id: String,
+        x_pt: f32,
+        y_pt: f32,
+    ) -> Result<JsValue, JsValue> {
+        to_js(&self.inner.move_image(&image_id, x_pt, y_pt))
+    }
+
+    /// Resize an image to the given width and height in points.
+    pub fn resize_image(
+        &mut self,
+        image_id: String,
+        width_pt: f32,
+        height_pt: f32,
+    ) -> Result<JsValue, JsValue> {
+        to_js(&self.inner.resize_image(&image_id, width_pt, height_pt))
+    }
+
+    // -------------------------------------------------------------------------
     // History
     // -------------------------------------------------------------------------
 

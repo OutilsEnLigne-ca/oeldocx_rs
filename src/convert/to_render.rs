@@ -113,6 +113,9 @@ fn convert_paragraph(
                     is_floating: d.is_floating,
                     offset_x_pt: d.offset_x_pt,
                     offset_y_pt: d.offset_y_pt,
+                    relative_from_h: d.relative_from_h.clone(),
+                    relative_from_v: d.relative_from_v.clone(),
+                    z_order: d.z_order,
                     wrapping_mode: match d.wrapping_mode {
                         crate::model::block::OelWrappingMode::Inline => {
                             crate::render::RenderWrappingMode::Inline

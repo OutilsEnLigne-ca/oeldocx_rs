@@ -120,38 +120,7 @@ fn convert_document_child(
                             RunChild::Break(_) => text.push('\n'),
                             RunChild::Drawing(d) => {
                                 if let Some(docx_rs::DrawingData::Pic(pic)) = &d.data {
-                                    let is_floating = matches!(
-                                        pic.position_type,
-                                        docx_rs::DrawingPositionType::Anchor
-                                    );
-                                    let width_pt = pic.size.0 as f32 / 12700.0;
-                                    let height_pt = pic.size.1 as f32 / 12700.0;
-                                    let (offset_x_pt, offset_y_pt) = if is_floating {
-                                        let ox = match &pic.position_h {
-                                            docx_rs::DrawingPosition::Offset(x) => {
-                                                *x as f32 / 12700.0
-                                            }
-                                            _ => 0.0,
-                                        };
-                                        let oy = match &pic.position_v {
-                                            docx_rs::DrawingPosition::Offset(y) => {
-                                                *y as f32 / 12700.0
-                                            }
-                                            _ => 0.0,
-                                        };
-                                        (ox, oy)
-                                    } else {
-                                        (0.0, 0.0)
-                                    };
-                                    let drawing = crate::model::block::OelDrawing {
-                                        id: pic.id.clone(),
-                                        width_pt,
-                                        height_pt,
-                                        is_floating,
-                                        offset_x_pt,
-                                        offset_y_pt,
-                                        wrapping_mode: convert_wrapping_mode(pic),
-                                    };
+                                    let drawing = convert_drawing(pic);
                                     if !text.is_empty() {
                                         para.runs.push(OelRun::with_props(
                                             std::mem::take(&mut text),
@@ -202,34 +171,7 @@ fn convert_document_child(
                                                         RunChild::Break(_) => text.push('\n'),
                                                         RunChild::Drawing(d) => {
                                                             if let Some(docx_rs::DrawingData::Pic(pic)) = &d.data {
-                                                                let is_floating = matches!(
-                                                                    pic.position_type,
-                                                                    docx_rs::DrawingPositionType::Anchor
-                                                                );
-                                                                let width_pt = pic.size.0 as f32 / 12700.0;
-                                                                let height_pt = pic.size.1 as f32 / 12700.0;
-                                                                let (offset_x_pt, offset_y_pt) = if is_floating {
-                                                                    let ox = match &pic.position_h {
-                                                                        docx_rs::DrawingPosition::Offset(x) => *x as f32 / 12700.0,
-                                                                        _ => 0.0,
-                                                                    };
-                                                                    let oy = match &pic.position_v {
-                                                                        docx_rs::DrawingPosition::Offset(y) => *y as f32 / 12700.0,
-                                                                        _ => 0.0,
-                                                                    };
-                                                                    (ox, oy)
-                                                                } else {
-                                                                    (0.0, 0.0)
-                                                                };
-                                                                let drawing = crate::model::block::OelDrawing {
-                                                                    id: pic.id.clone(),
-                                                                    width_pt,
-                                                                    height_pt,
-                                                                    is_floating,
-                                                                    offset_x_pt,
-                                                                    offset_y_pt,
-                                                                    wrapping_mode: convert_wrapping_mode(pic),
-                                                                };
+                                                                let drawing = convert_drawing(pic);
                                                                 if !text.is_empty() {
                                                                     para.runs.push(OelRun::with_props(std::mem::take(&mut text), props.clone()));
                                                                 }
@@ -437,6 +379,39 @@ fn convert_section(docx: &Docx) -> OelSectionProps {
         margin_right: m.right.unsigned_abs(),
         margin_bottom: m.bottom.unsigned_abs(),
         margin_left: m.left.unsigned_abs(),
+    }
+}
+
+fn convert_drawing(pic: &docx_rs::Pic) -> crate::model::block::OelDrawing {
+    let is_floating = matches!(pic.position_type, docx_rs::DrawingPositionType::Anchor);
+    let width_pt = pic.size.0 as f32 / 12700.0;
+    let height_pt = pic.size.1 as f32 / 12700.0;
+    let (offset_x_pt, offset_y_pt) = if is_floating {
+        let ox = match &pic.position_h {
+            docx_rs::DrawingPosition::Offset(x) => *x as f32 / 12700.0,
+            _ => 0.0,
+        };
+        let oy = match &pic.position_v {
+            docx_rs::DrawingPosition::Offset(y) => *y as f32 / 12700.0,
+            _ => 0.0,
+        };
+        (ox, oy)
+    } else {
+        (0.0, 0.0)
+    };
+    let relative_from_h = pic.relative_from_h.to_string();
+    let relative_from_v = pic.relative_from_v.to_string();
+    crate::model::block::OelDrawing {
+        id: pic.id.clone(),
+        width_pt,
+        height_pt,
+        is_floating,
+        offset_x_pt,
+        offset_y_pt,
+        wrapping_mode: convert_wrapping_mode(pic),
+        relative_from_h,
+        relative_from_v,
+        z_order: pic.relative_height,
     }
 }
 

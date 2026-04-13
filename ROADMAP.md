@@ -34,14 +34,16 @@ This roadmap tracks the development of features required to bring OutilsEnLigne'
 ## 🟠 Phase 3: Images & Object Layouts
 
 ### 3.1 Inline Images (Standard)
-- [ ] **[Rust Parser]** Parse `DrawingML` (`<wp:inline>`). Base64 encode or extract image blobs.
-- [ ] **[Rust Model]** Add `Image` node type to AST.
+- [x] **[Rust Parser]** Parse `DrawingML` (`<wp:inline>`). Base64 encode or extract image blobs.
+- [x] **[Rust Model]** `OelDrawing` + `RenderDrawing` with full metadata. `OelDrawing::new_inline()` constructor.
+- [x] **[Rust Engine]** `insert_image` command + WASM binding. Images survive `serialize()` round-trip via `image_bytes` map.
 - [ ] **[React UI]** Render inline `<img src={...} />` inside paragraphs.
 
 ### 3.2 Floating Images & Text Wrapping
-- [ ] **[Rust Parser]** Parse `<wp:anchor>` (wrapping styles, absolute coordinates).
+- [x] **[Rust Parser]** Parse `<wp:anchor>` (wrapping styles, absolute coordinates). Captures `relative_from_h/v` and `z_order`.
+- [x] **[Rust Engine]** `update_image_wrap`, `move_image`, `resize_image` commands + WASM bindings. Floating images written back via `<wp:anchor>`.
 - [ ] **[React UI]** Implement advanced CSS layout (absolute positioning, `float`, `clear`, `clip-path`).
-- [ ] **[Rust & React]** Implement `InsertImageCommand`, `UpdateImageWrapCommand`, and `MoveImageCommand`.
+- [ ] **[React UI]** Drag-to-move, resize handles, wrap mode selector toolbar.
 
 ---
 

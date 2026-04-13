@@ -1,6 +1,8 @@
 use crate::commands::{
-    format as fmt_cmd, paragraph as para_cmd, section as sec_cmd, table as tbl_cmd, text as txt_cmd,
+    format as fmt_cmd, image as img_cmd, paragraph as para_cmd, section as sec_cmd,
+    table as tbl_cmd, text as txt_cmd,
 };
+use crate::model::block::OelWrappingMode;
 use crate::convert::{SerializeError, docx_to_oel, oel_to_bytes, oel_to_render};
 use crate::cursor::{DocPosition, DocSelection};
 use crate::history::UndoStack;
@@ -34,6 +36,8 @@ impl std::fmt::Display for ControllerError {
 /// commands, mutates the document, and produces state snapshots for the frontend.
 pub struct DocxController {
     pub images: std::collections::HashMap<String, String>,
+    /// Raw PNG bytes for each image, keyed by drawing ID. Used during DOCX serialization.
+    pub image_bytes: std::collections::HashMap<String, Vec<u8>>,
     pub document: OelDocument,
     pub selection: DocSelection,
     pub undo_stack: UndoStack,
@@ -48,6 +52,7 @@ impl DocxController {
     pub fn new() -> Self {
         Self {
             images: std::collections::HashMap::new(),
+            image_bytes: std::collections::HashMap::new(),
             document: OelDocument::empty(),
             selection: DocSelection::default(),
             undo_stack: UndoStack::new(),
@@ -70,11 +75,13 @@ impl DocxController {
             docx_rs::read_docx(bytes).map_err(|e| ControllerError::ParseError(e.to_string()))?;
 
         self.images.clear();
+        self.image_bytes.clear();
         use base64::Engine;
         for (id, _path, _img, png) in &docx.images {
             let b64 = base64::engine::general_purpose::STANDARD.encode(&png.0);
             self.images
                 .insert(id.clone(), format!("data:image/png;base64,{}", b64));
+            self.image_bytes.insert(id.clone(), png.0.clone());
         }
 
         self.document = docx_to_oel(&docx);
@@ -89,6 +96,7 @@ impl DocxController {
 
     pub fn new_document(&mut self) -> EditorState {
         self.images.clear();
+        self.image_bytes.clear();
         self.document = OelDocument::empty();
         self.selection = DocSelection::default();
         self.undo_stack.clear();
@@ -99,7 +107,7 @@ impl DocxController {
     }
 
     pub fn serialize(&self) -> Result<Vec<u8>, ControllerError> {
-        oel_to_bytes(&self.document).map_err(|e| ControllerError::SerializeError(e.to_string()))
+        oel_to_bytes(&self.document, &self.image_bytes).map_err(|e| ControllerError::SerializeError(e.to_string()))
     }
 
     pub fn get_state(&self) -> EditorState {
@@ -404,6 +412,54 @@ impl DocxController {
     pub fn set_margins(&mut self, top: u32, right: u32, bottom: u32, left: u32) -> EditorState {
         self.snapshot();
         sec_cmd::set_margins(&mut self.document, top, right, bottom, left);
+        self.last_was_text_input = false;
+        self.build_state()
+    }
+
+    // -------------------------------------------------------------------------
+    // Images
+    // -------------------------------------------------------------------------
+
+    /// Insert a PNG image at the current cursor position as an inline drawing.
+    ///
+    /// After calling this, the frontend should also call `get_images()` to retrieve
+    /// the new image's data URL.
+    pub fn insert_image(&mut self, bytes: Vec<u8>, width_pt: f32, height_pt: f32) -> EditorState {
+        self.snapshot();
+        img_cmd::insert_image(
+            &mut self.document,
+            &self.selection,
+            &mut self.image_bytes,
+            &mut self.images,
+            bytes,
+            width_pt,
+            height_pt,
+        );
+        self.last_was_text_input = false;
+        self.build_state()
+    }
+
+    /// Change the wrapping mode of an image. Use `"inline"`, `"square"`, `"tight"`,
+    /// `"through"`, `"topAndBottom"`, `"behindText"`, or `"inFrontOfText"`.
+    pub fn update_image_wrap(&mut self, image_id: &str, mode: OelWrappingMode) -> EditorState {
+        self.snapshot();
+        img_cmd::update_image_wrap(&mut self.document, image_id, mode);
+        self.last_was_text_input = false;
+        self.build_state()
+    }
+
+    /// Reposition a floating image (coordinates in points, relative to anchor).
+    pub fn move_image(&mut self, image_id: &str, x_pt: f32, y_pt: f32) -> EditorState {
+        self.snapshot();
+        img_cmd::move_image(&mut self.document, image_id, x_pt, y_pt);
+        self.last_was_text_input = false;
+        self.build_state()
+    }
+
+    /// Resize an image to the given dimensions in points.
+    pub fn resize_image(&mut self, image_id: &str, width_pt: f32, height_pt: f32) -> EditorState {
+        self.snapshot();
+        img_cmd::resize_image(&mut self.document, image_id, width_pt, height_pt);
         self.last_was_text_input = false;
         self.build_state()
     }

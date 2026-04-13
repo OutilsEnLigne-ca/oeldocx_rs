@@ -22,6 +22,29 @@ pub struct OelDrawing {
     pub offset_x_pt: f32,
     pub offset_y_pt: f32,
     pub wrapping_mode: OelWrappingMode,
+    /// Horizontal anchor reference — "page", "margin", "column", etc.
+    pub relative_from_h: String,
+    /// Vertical anchor reference — "page", "margin", "paragraph", etc.
+    pub relative_from_v: String,
+    /// Z-order (relative_height in OOXML). Higher = in front.
+    pub z_order: u32,
+}
+
+impl OelDrawing {
+    pub fn new_inline(id: impl Into<String>, width_pt: f32, height_pt: f32) -> Self {
+        Self {
+            id: id.into(),
+            width_pt,
+            height_pt,
+            is_floating: false,
+            offset_x_pt: 0.0,
+            offset_y_pt: 0.0,
+            wrapping_mode: OelWrappingMode::Inline,
+            relative_from_h: "page".into(),
+            relative_from_v: "page".into(),
+            z_order: 190500,
+        }
+    }
 }
 
 /// A text run: contiguous text with uniform formatting.

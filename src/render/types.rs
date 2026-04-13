@@ -69,6 +69,9 @@ pub struct RenderDrawing {
     pub offset_x_pt: f32,
     pub offset_y_pt: f32,
     pub wrapping_mode: RenderWrappingMode,
+    pub relative_from_h: String,
+    pub relative_from_v: String,
+    pub z_order: u32,
 }
 
 /// A contiguous span of text with uniform formatting.
